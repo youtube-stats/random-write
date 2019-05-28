@@ -64,9 +64,9 @@ struct Receivers {
 
 fn main() {
     println!("Hello, world!");
-    ::std::env::set_var("RUST_LOG", "actix_web=info");
+    ::std::env::set_var("RUST_LOG", "actix_web=info,actix_server=info");
     env_logger::init();
-    let sys = actix::System::new("prost-example");
+    let sys = actix::System::new("db-writer");
 
     let (mut subs_tx, mut subs_rx): (Sender<(i32,i32)>, Receiver<(i32,i32)>) = channel();
     let (mut views_tx, mut views_rx): (Sender<(i32,i32)>, Receiver<(i32,i32)>) = channel();
