@@ -11,4 +11,4 @@ Cargo.lock
 .idea/
 target/
 src/mod.rs
-src/example.rs
+src/metrics.rs
