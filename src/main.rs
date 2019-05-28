@@ -1,20 +1,41 @@
+extern crate actix;
+extern crate actix_protobuf;
 extern crate actix_web;
-extern crate quick_protobuf;
+extern crate bytes;
+extern crate prost;
+#[macro_use]
+extern crate prost_derive;
 
-pub mod metrics;
-
-use actix_web::{App, HttpRequest, HttpResponse, HttpServer};
-use actix_web::web::{Data,resource,get};
-//use metrics::{Subs,Views,Videos,Metrics};
+use actix_protobuf::*;
+use actix_web::*;
+use actix_web::web::{Data, resource, get, post};
 use std::sync::mpsc::{Sender, Receiver};
 use std::sync::mpsc::channel;
 use std::thread;
+
+#[derive(Clone, PartialEq, Message)]
+pub struct MyObj {
+    #[prost(int32, tag = "1")]
+    pub number: i32,
+    #[prost(string, tag = "2")]
+    pub name: String,
+}
+
+fn index(msg: ProtoBuf<MyObj>) -> HttpResponse {
+    println!("model: {:?}", msg);
+    HttpResponse::Ok().finish()
+}
 
 #[derive(Clone)]
 struct Receivers {
     subs: Sender<(i32,i32)>,
     views: Sender<(i32,i32)>,
     videos: Sender<(i32,i32)>
+}
+
+fn put(state: Data<Receivers>, req: HttpRequest) -> HttpResponse {
+    println!("{:?}", req);
+    HttpResponse::Ok().finish()
 }
 
 fn put_subs(state: Data<Receivers>, req: HttpRequest) -> HttpResponse {
@@ -84,6 +105,9 @@ fn main() {
             views: views_tx.clone(),
             videos: videos_tx.clone()
         })
+        .service(
+            resource("/put")
+                .route(post().to(put)))
         .service(
             resource("/subs")
                 .route(get().to(put_subs)))

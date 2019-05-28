@@ -9,5 +9,9 @@ name = "db-writer"
 path = "src/main.rs"
 
 [dependencies]
+actix = "0.8.2"
+actix-protobuf = "0.4.0"
 actix-web = "1.0.0-rc"
-quick-protobuf = "0.6.3"
+bytes = "0.4.12"
+prost = "0.5.0"
+prost-derive = "0.5.0"
