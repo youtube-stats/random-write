@@ -48,8 +48,10 @@ pub struct Metrics {
     pub videos: Option<Videos>
 }
 
-fn index(msg: ProtoBuf<Metrics>) -> HttpResponse {
+fn handler(state: Data<Receivers>, msg: ProtoBuf<Metrics>) -> HttpResponse {
     println!("model: {:?}", msg);
+
+    let recvs: Receivers = state.get_ref().clone();
     HttpResponse::Ok().finish()
 }
 
@@ -58,41 +60,6 @@ struct Receivers {
     subs: Sender<(i32,i32)>,
     views: Sender<(i32,i32)>,
     videos: Sender<(i32,i32)>
-}
-
-fn put(state: Data<Receivers>, req: HttpRequest) -> HttpResponse {
-    println!("{:?}", req);
-    HttpResponse::Ok().finish()
-}
-
-fn put_subs(state: Data<Receivers>, req: HttpRequest) -> HttpResponse {
-    let s = state.get_ref().clone();
-    let subs: Sender<(i32,i32)> = s.subs;
-
-    format!("{:?}!", req);
-    subs.send((1,2)).expect("Could not send subs msg");
-
-    HttpResponse::Ok().finish()
-}
-
-fn put_views(state: Data<Receivers>, req: HttpRequest) -> HttpResponse {
-    let s = state.get_ref().clone();
-    let views: Sender<(i32,i32)> = s.views;
-
-    format!("{:?}!", req);
-    views.send((3,4)).expect("Could not send views msg");
-
-    HttpResponse::Ok().finish()
-}
-
-fn put_videos(state: Data<Receivers>, req: HttpRequest) -> HttpResponse {
-    let s = state.get_ref().clone();
-    let videos: Sender<(i32,i32)> = s.videos;
-
-    format!("{:?}!", req);
-    videos.send((5,6)).expect("Could not send videos msg");
-
-    HttpResponse::Ok().finish()
 }
 
 fn main() {
@@ -138,9 +105,11 @@ fn main() {
         .wrap(middleware::Logger::default())
         .service(
             resource("/put")
-                .route(get().to(put)))
+                .route(get().to(handler)))
     ).bind("0.0.0.0:8080")
     .expect("Can not bind to port 8080")
-    .run()
-     .expect("Cannot start server");
+    .start();
+
+    println!("Started http server: 0.0.0.0:8081");
+    let _ = sys.run();
 }
