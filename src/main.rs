@@ -15,6 +15,8 @@ use std::sync::mpsc::{Sender, Receiver};
 use std::sync::mpsc::channel;
 use std::thread;
 use postgres::Connection;
+use postgres::stmt::Statement;
+use postgres::rows::{Rows, Row};
 
 type Msg = (i32,i32);
 type Payload = Vec<Msg>;
@@ -58,9 +60,75 @@ pub struct Metrics {
 
 const POSTGRESQL_URL: &'static str = "postgresql://admin@localhost:5432/youtube";
 
-/*fn sub_check(conn: &Connection, subs: &SubList) -> Vec<Msg> {
+fn subs_check(conn: &Connection, subs: &Vec<Msg>) -> Payload {
+    let query: &'static str = "SELECT subs FROM youtube.stats.metric_subs WHERE channel_id = $1 ORDER BY time ASC LIMIT 1";
+    let stmt: Statement = conn.prepare_cached(query).unwrap();
 
-}*/
+    let mut clean: Vec<Msg> = Vec::new();
+    for value in subs {
+        let rows: Rows = stmt.query(&[]).expect("Could not query subs table");
+        if rows.len() == 0 {
+            clean.push(*value);
+            continue
+        }
+
+        let row: Row = rows.iter().last().expect("could not get retrieve subs row");
+        let sub: i32 = row.get(0);
+
+        if sub != value.1 {
+            clean.push(*value);
+        }
+    }
+
+    clean
+}
+
+fn views_check(conn: &Connection, views: &Vec<Msg>) -> Payload {
+    let query: &'static str = "SELECT subs FROM youtube.stats.metric_views WHERE channel_id = $1 ORDER BY time ASC LIMIT 1";
+    let stmt: Statement = conn.prepare_cached(query).unwrap();
+
+    let mut clean: Vec<Msg> = Vec::new();
+    for value in views {
+        let rows: Rows = stmt.query(&[]).expect("Could not query views table");
+        if rows.len() == 0 {
+            clean.push(*value);
+            continue
+        }
+
+        let row: Row = rows.iter().last().expect("could not get retrieve views row");
+        let view: i32 = row.get(0);
+
+        if view != value.1 {
+            clean.push(*value);
+        }
+    }
+
+    clean
+}
+
+fn videos_check(conn: &Connection, videos: &Vec<Msg>) -> Payload {
+    let query: &'static str = "SELECT subs FROM youtube.stats.metric_videos WHERE channel_id = $1 ORDER BY time ASC LIMIT 1";
+    let stmt: Statement = conn.prepare_cached(query).unwrap();
+
+    let mut clean: Vec<Msg> = Vec::new();
+    for value in videos {
+        let rows: Rows = stmt.query(&[]).expect("Could not query videos table");
+        if rows.len() == 0 {
+            clean.push(*value);
+            continue
+        }
+
+        let row: Row = rows.iter().last().expect("could not get retrieve videos row");
+        let videos: i32 = row.get(0);
+
+        if videos != value.1 {
+            clean.push(*value);
+        }
+    }
+
+    clean
+}
+
 
 fn handler(state: Data<Receivers>, msg: ProtoBuf<Metrics>) -> HttpResponse {
     println!("model: {:?}", msg);
@@ -138,8 +206,11 @@ fn main() {
 
         loop {
             println!("Waiting for subs message");
-            let subs_row: Payload = subs_rx.recv().expect("Something went wrong with sub message");
-            println!("Got subs msg {:?}", subs_row);
+            let subs: Payload = subs_rx.recv().expect("Something went wrong with sub message");
+            println!("Got subs msg {:?}", subs);
+
+            let subs: Payload = subs_check(&conn, &subs);
+            println!("Inserting subs {:?}", subs);
         }
     });
 
@@ -152,8 +223,11 @@ fn main() {
 
         loop {
             println!("Waiting for views message");
-            let views_row: Payload = views_rx.recv().expect("Something went wrong with views message");
-            println!("Got views msg {:?}", views_row);
+            let views: Payload = views_rx.recv().expect("Something went wrong with views message");
+            println!("Got views msg {:?}", views);
+
+            let views: Payload = views_check(&conn, &views);
+            println!("Inserting views {:?}", views);
         }
     });
 
@@ -166,8 +240,11 @@ fn main() {
 
         loop {
             println!("Waiting for videos message");
-            let videos_row: Payload = videos_rx.recv().expect("Something went wrong with videos message");
-            println!("Got videos msg {:?}", videos_row);
+            let videos: Payload = videos_rx.recv().expect("Something went wrong with videos message");
+            println!("Got videos msg {:?}", videos);
+
+            let videos: Payload = videos_check(&conn, &videos);
+            println!("Inserting videos {:?}", videos);
         }
     });
 
@@ -183,6 +260,7 @@ fn main() {
                 .route(get().to(handler)))
     ).bind("0.0.0.0:8080")
     .expect("Can not bind to port 8080")
+    .workers(8)
     .start();
 
     println!("Started http server: 0.0.0.0:8081");
