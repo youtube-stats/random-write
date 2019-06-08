@@ -1,5 +1,6 @@
 extern crate actix;
 extern crate actix_web;
+extern crate chrono;
 extern crate env_logger;
 extern crate postgres;
 extern crate serde;
@@ -8,10 +9,9 @@ extern crate serde_json;
 use actix::System;
 use actix::SystemRunner;
 use actix_web::{HttpResponse, HttpServer, App, middleware};
+use chrono::prelude::*;
 use postgres::Connection;
 use postgres::TlsMode;
-use postgres::stmt::Statement;
-use postgres::types::ToSql;
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use std::sync::mpsc::{Sender, Receiver};
@@ -20,8 +20,10 @@ use std::thread;
 
 
 pub mod types {
+    use chrono::prelude::*;
+
     pub struct SubsStore {
-        pub time: i32,
+        pub time: DateTime<Local>,
         pub ids: i32,
         pub subs: i32
     }
@@ -45,11 +47,7 @@ impl YoutubeSlim {
         let mut store: Vec<SubsStore> = Vec::new();
 
         for item in &self.items {
-            let time: u64 = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .expect("Could not get timestamp")
-                .as_secs();
-            let time: i32 = time as i32;
+            let time: DateTime<Local> = Local::now();
 
             let ids: i32 = item.id;
             let subs: i32 = item.sub;
@@ -76,7 +74,6 @@ pub mod statics {
 
 use statics::CACHE_SIZE;
 use actix_web::web::{Json, resource, post, Data};
-use std::time::SystemTime;
 
 pub fn handler(item: Json<YoutubeSlim>, state: Data<Sender<YoutubeSlim>>) -> HttpResponse {
     let sender: &Sender<YoutubeSlim> = state.get_ref();
@@ -85,10 +82,17 @@ pub fn handler(item: Json<YoutubeSlim>, state: Data<Sender<YoutubeSlim>>) -> Htt
     HttpResponse::Ok().finish()
 }
 
-pub fn get_insert_str() -> String {
+pub fn get_insert_str(store: &Vec<SubsStore>) -> String {
     let mut str_buffer: String = {
-        let string: &'static str =
-            "INSERT INTO youtube.stats.subs (time, id, subs) VALUES ($1,$2,$3)";
+        let first: &SubsStore = store.first().expect("Store is empty");
+
+        let string: String =
+            format!("INSERT INTO youtube.stats.subs (time, id, subs) VALUES ('{}',{},{})",
+                    first.time,
+                    first.ids,
+                    first.subs);
+
+        let string: &str = string.as_ref();
 
         let capacity: usize = 4 * CACHE_SIZE;
         let mut str_buffer: String = String::with_capacity(capacity);
@@ -100,31 +104,16 @@ pub fn get_insert_str() -> String {
     let step: usize = 3;
 
     for i in range.step_by(step) {
-        let string: String = format!(",(${},${},${})", i, i + 1, i + 2);
+        let item: &SubsStore = &store[i];
+
+        let string: String =
+            format!(",('{}',{},{})", item.time, item.ids, item.subs);
         let string: &str = &string.as_str();
 
         str_buffer.push_str(string);
     }
 
     str_buffer
-}
-
-pub fn get_insert_params(store: &Vec<SubsStore>) -> [&ToSql; CACHE_SIZE * 3] {
-    let mut params: [&ToSql; CACHE_SIZE * 3] = [&0; CACHE_SIZE * 3];
-    let mut counter: usize = 0;
-
-    for sub in store {
-        params[counter] = &sub.time;
-        counter += 1;
-
-        params[counter] = &sub.ids;
-        counter += 1;
-
-        params[counter] = &sub.subs;
-        counter += 1;
-    }
-
-    params
 }
 
 pub fn main() {
@@ -142,13 +131,6 @@ pub fn main() {
             let tls: TlsMode = TlsMode::None;
 
             Connection::connect(params, tls).expect("Could not connect to database")
-        };
-        let query: Statement = {
-            let query: String = get_insert_str();
-            let query: &str = query.as_str();
-
-            conn.prepare_cached(query)
-                .expect("Could not create prepared statement")
         };
 
         let mut store: Vec<SubsStore> = {
@@ -170,8 +152,10 @@ pub fn main() {
 
             if store.len() >= CACHE_SIZE {
                 println!("Inserting {} entries", CACHE_SIZE);
-                let params: [&ToSql; CACHE_SIZE * 3] = get_insert_params(&store);
-                query.execute(&params[..])
+                let query: String = get_insert_str(&store);
+                let query: &str = query.as_str();
+
+                conn.execute(query, &[])
                     .expect("Could not insert values");
 
                 let range: Range<usize> = 0..CACHE_SIZE;
