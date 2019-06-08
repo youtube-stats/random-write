@@ -80,7 +80,8 @@ pub fn handler(state: Data<Sender<Subs>>, msg: ProtoBuf<Subs>) -> HttpResponse {
 
 pub fn get_insert_str() -> String {
     let mut str_buffer: String = {
-        let string: &'static str = "INSERT INTO youtube.stats.subs (time, id, subs) VALUES ";
+        let string: &'static str =
+            "INSERT INTO youtube.stats.subs (time, id, subs) VALUES ($1,$2,$3)";
 
         let capacity: usize = 4 * CACHE_SIZE;
         let mut str_buffer: String = String::with_capacity(capacity);
@@ -88,11 +89,11 @@ pub fn get_insert_str() -> String {
         str_buffer
     };
 
-    let range: Range<usize> = 1..CACHE_SIZE;
+    let range: Range<usize> = 4..CACHE_SIZE;
     let step: usize = 3;
 
     for i in range.step_by(step) {
-        let string: String = format!("(${},${},${}),", i, i + 1, i + 2);
+        let string: String = format!(",(${},${},${})", i, i + 1, i + 2);
         let string: &str = &string.as_str();
 
         str_buffer.push_str(string);
