@@ -13,43 +13,41 @@ use postgres::TlsMode;
 use postgres::stmt::Statement;
 use postgres::types::ToSql;
 use quick_protobuf::Writer;
+use std::ops::Range;
 use std::sync::mpsc::{Sender, Receiver};
 use std::sync::mpsc::channel;
 use std::thread;
+use types::SubsStore;
 
 pub mod message;
 use message::Subs;
 
-pub mod types {
-    impl Subs {
-        pub fn to_store(self: &Subs) -> Vec<SubsStore> {
-            let mut store: Vec<SubsStore> = Vec::new();
-            let len: usize = self.subs.len();
+impl Subs {
+    pub fn to_store(self: &Subs) -> Vec<SubsStore> {
+        let mut store: Vec<SubsStore> = Vec::new();
+        let len: usize = self.subs.len();
 
-            for i in 0..len {
-                let value: SubsStore = SubsStore {
-                    time: self.time[i],
-                    id: self.ids[i],
-                    subs: self.subs[i]
-                };
+        for i in 0..len {
+            let value: SubsStore = SubsStore {
+                time: self.time[i],
+                ids: self.ids[i],
+                subs: self.subs[i]
+            };
 
-                store.push(value)
-            }
-
-            store
+            store.push(value)
         }
-    }
 
-    pub struct SubsStore {
-        pub time: i32,
-        pub id: i32,
-        pub subs: i32
+        store
     }
 }
 
-use types::{Subs,SubsStore};
-
-use std::ops::Range;
+pub mod types {
+    pub struct SubsStore {
+        pub time: i32,
+        pub ids: i32,
+        pub subs: i32
+    }
+}
 
 pub mod statics {
     pub const POSTGRESQL_URL: &'static str = "postgresql://admin@localhost:5432/youtube";
@@ -58,12 +56,12 @@ pub mod statics {
 
 use statics::CACHE_SIZE;
 
-pub fn handler(msg: ProtoBuf<Subs>, state: Data<Sender<Subs>>) -> HttpResponse {
-    let t: Subs = msg.0;
+pub fn handler(req: HttpRequest, state: Data<Sender<Subs>>) -> HttpResponse {
+    /*let t: Subs = msg.0;
     println!("Received model: {:?}", t);
 
     let sender: &Sender<Subs> = state.get_ref();
-    sender.send(t).expect("Could not send protobuf message");
+    sender.send(t).expect("Could not send protobuf message");*/
     HttpResponse::Ok().finish()
 }
 
@@ -99,7 +97,7 @@ pub fn get_insert_params(store: &Vec<SubsStore>) -> [&ToSql; CACHE_SIZE * 3] {
         params[counter] = &sub.time;
         counter += 1;
 
-        params[counter] = &sub.id;
+        params[counter] = &sub.ids;
         counter += 1;
 
         params[counter] = &sub.subs;
