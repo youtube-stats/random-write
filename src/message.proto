@@ -1,0 +1,9 @@
+syntax = "proto3";
+
+package message;
+
+message Subs {
+    repeated int32 time = 1;
+    repeated int32 ids = 2;
+    repeated int32 subs = 3;
+}

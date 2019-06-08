@@ -1,37 +1,26 @@
 extern crate actix;
-extern crate actix_protobuf;
 extern crate actix_web;
-extern crate bytes;
 extern crate env_logger;
 extern crate postgres;
-extern crate prost;
-#[macro_use]
-extern crate prost_derive;
+extern crate quick_protobuf;
 
 use actix::System;
 use actix::SystemRunner;
-use actix_protobuf::*;
 use actix_web::*;
 use actix_web::web::{Data, resource, post};
 use postgres::Connection;
 use postgres::TlsMode;
 use postgres::stmt::Statement;
 use postgres::types::ToSql;
+use quick_protobuf::Writer;
 use std::sync::mpsc::{Sender, Receiver};
 use std::sync::mpsc::channel;
 use std::thread;
 
-pub mod types {
-    #[derive(Clone, PartialEq, Message)]
-    pub struct Subs {
-        #[prost(int32, repeated, tag = "1")]
-        pub time: Vec<i32>,
-        #[prost(int32, repeated, tag = "2")]
-        pub id: Vec<i32>,
-        #[prost(int32, repeated, tag = "3")]
-        pub subs: Vec<i32>
-    }
+pub mod message;
+use message::Subs;
 
+pub mod types {
     impl Subs {
         pub fn to_store(self: &Subs) -> Vec<SubsStore> {
             let mut store: Vec<SubsStore> = Vec::new();
@@ -40,7 +29,7 @@ pub mod types {
             for i in 0..len {
                 let value: SubsStore = SubsStore {
                     time: self.time[i],
-                    id: self.id[i],
+                    id: self.ids[i],
                     subs: self.subs[i]
                 };
 
@@ -69,7 +58,7 @@ pub mod statics {
 
 use statics::CACHE_SIZE;
 
-pub fn handler(state: Data<Sender<Subs>>, msg: ProtoBuf<Subs>) -> HttpResponse {
+pub fn handler(msg: ProtoBuf<Subs>, state: Data<Sender<Subs>>) -> HttpResponse {
     let t: Subs = msg.0;
     println!("Received model: {:?}", t);
 
