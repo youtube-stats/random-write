@@ -12,7 +12,7 @@ use actix::System;
 use actix::SystemRunner;
 use actix_protobuf::*;
 use actix_web::*;
-use actix_web::web::{Data, resource, get};
+use actix_web::web::{Data, resource, post};
 use postgres::Connection;
 use postgres::TlsMode;
 use postgres::stmt::Statement;
@@ -151,7 +151,7 @@ pub fn main() {
 
         loop {
             {
-                println!("Waiting for message message");
+                println!("Waiting for message");
                 let other: Subs = rx.recv().expect("Could not retrieve message");
                 println!("Got message {:?}", other);
 
@@ -177,8 +177,8 @@ pub fn main() {
         .data(sx.clone())
         .wrap(middleware::Logger::default())
         .service(
-            resource("/put")
-                .route(get().to(handler)))
+            resource("/post")
+                .route(post().to(handler)))
     ).bind("0.0.0.0:8081")
     .expect("Can not bind to port 8081")
     .workers(8)
