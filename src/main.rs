@@ -179,8 +179,8 @@ pub fn main() {
         .service(
             resource("/put")
                 .route(get().to(handler)))
-    ).bind("0.0.0.0:8080")
-    .expect("Can not bind to port 8080")
+    ).bind("0.0.0.0:8081")
+    .expect("Can not bind to port 8081")
     .workers(8)
     .start();
 
