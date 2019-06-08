@@ -8,252 +8,172 @@ extern crate prost;
 #[macro_use]
 extern crate prost_derive;
 
+use actix::System;
+use actix::SystemRunner;
 use actix_protobuf::*;
 use actix_web::*;
 use actix_web::web::{Data, resource, get};
+use postgres::Connection;
+use postgres::TlsMode;
+use postgres::stmt::Statement;
+use postgres::types::ToSql;
 use std::sync::mpsc::{Sender, Receiver};
 use std::sync::mpsc::channel;
 use std::thread;
-use postgres::Connection;
-use postgres::stmt::Statement;
-use postgres::rows::{Rows, Row};
 
-type Msg = (i32,i32);
-type Payload = Vec<Msg>;
-type Send = Sender<Payload>;
-type Recv = Receiver<Payload>;
-type Chan = (Send, Recv);
+pub mod types {
+    #[derive(Clone, PartialEq, Message)]
+    pub struct Subs {
+        #[prost(int32, repeated, tag = "1")]
+        pub time: Vec<i32>,
+        #[prost(int32, repeated, tag = "2")]
+        pub id: Vec<i32>,
+        #[prost(int32, repeated, tag = "3")]
+        pub subs: Vec<i32>
+    }
 
-#[derive(Clone, PartialEq, Message)]
-pub struct Subs {
-    #[prost(int32, repeated, tag = "1")]
-    pub id: Vec<i32>,
-    #[prost(int32, repeated, tag = "2")]
-    pub subs: Vec<i32>,
-}
+    impl Subs {
+        pub fn to_store(self: &Subs) -> Vec<SubsStore> {
+            let mut store: Vec<SubsStore> = Vec::new();
+            let len: usize = self.subs.len();
 
-#[derive(Clone, PartialEq, Message)]
-pub struct Views {
-    #[prost(int32, repeated, tag = "1")]
-    pub id: Vec<i32>,
-    #[prost(int32, repeated, tag = "2")]
-    pub views: Vec<i32>,
-}
+            for i in 0..len {
+                let value: SubsStore = SubsStore {
+                    time: self.time[i],
+                    id: self.id[i],
+                    subs: self.subs[i]
+                };
 
-#[derive(Clone, PartialEq, Message)]
-pub struct Videos {
-    #[prost(int32, repeated, tag = "1")]
-    pub id: Vec<i32>,
-    #[prost(int32, repeated, tag = "2")]
-    pub videos: Vec<i32>,
-}
+                store.push(value)
+            }
 
-#[derive(Clone, PartialEq, Message)]
-pub struct Metrics {
-    #[prost(message, tag = "1")]
-    pub subs: Option<Subs>,
-    #[prost(message, tag = "2")]
-    pub views: Option<Views>,
-    #[prost(message, tag = "3")]
-    pub videos: Option<Videos>
-}
-
-const POSTGRESQL_URL: &'static str = "postgresql://admin@localhost:5432/youtube";
-
-fn subs_check(conn: &Connection, subs: &Vec<Msg>) -> Payload {
-    let query: &'static str = "SELECT subs FROM youtube.stats.metric_subs WHERE channel_id = $1 ORDER BY time ASC LIMIT 1";
-    let stmt: Statement = conn.prepare_cached(query).unwrap();
-
-    let mut clean: Vec<Msg> = Vec::new();
-    for value in subs {
-        let rows: Rows = stmt.query(&[]).expect("Could not query subs table");
-        if rows.len() == 0 {
-            clean.push(*value);
-            continue
-        }
-
-        let row: Row = rows.iter().last().expect("could not get retrieve subs row");
-        let sub: i32 = row.get(0);
-
-        if sub != value.1 {
-            clean.push(*value);
+            store
         }
     }
 
-    clean
+    pub struct SubsStore {
+        pub time: i32,
+        pub id: i32,
+        pub subs: i32
+    }
 }
 
-fn views_check(conn: &Connection, views: &Vec<Msg>) -> Payload {
-    let query: &'static str = "SELECT subs FROM youtube.stats.metric_views WHERE channel_id = $1 ORDER BY time ASC LIMIT 1";
-    let stmt: Statement = conn.prepare_cached(query).unwrap();
+use types::{Subs,SubsStore};
 
-    let mut clean: Vec<Msg> = Vec::new();
-    for value in views {
-        let rows: Rows = stmt.query(&[]).expect("Could not query views table");
-        if rows.len() == 0 {
-            clean.push(*value);
-            continue
-        }
+use std::ops::Range;
 
-        let row: Row = rows.iter().last().expect("could not get retrieve views row");
-        let view: i32 = row.get(0);
-
-        if view != value.1 {
-            clean.push(*value);
-        }
-    }
-
-    clean
+pub mod statics {
+    pub const POSTGRESQL_URL: &'static str = "postgresql://admin@localhost:5432/youtube";
+    pub const CACHE_SIZE: usize = 500;
 }
 
-fn videos_check(conn: &Connection, videos: &Vec<Msg>) -> Payload {
-    let query: &'static str = "SELECT subs FROM youtube.stats.metric_videos WHERE channel_id = $1 ORDER BY time ASC LIMIT 1";
-    let stmt: Statement = conn.prepare_cached(query).unwrap();
+use statics::CACHE_SIZE;
 
-    let mut clean: Vec<Msg> = Vec::new();
-    for value in videos {
-        let rows: Rows = stmt.query(&[]).expect("Could not query videos table");
-        if rows.len() == 0 {
-            clean.push(*value);
-            continue
-        }
+pub fn handler(state: Data<Sender<Subs>>, msg: ProtoBuf<Subs>) -> HttpResponse {
+    let t: Subs = msg.0;
+    println!("Received model: {:?}", t);
 
-        let row: Row = rows.iter().last().expect("could not get retrieve videos row");
-        let videos: i32 = row.get(0);
-
-        if videos != value.1 {
-            clean.push(*value);
-        }
-    }
-
-    clean
-}
-
-
-fn handler(state: Data<Receivers>, msg: ProtoBuf<Metrics>) -> HttpResponse {
-    println!("model: {:?}", msg);
-
-    let sends: Receivers = state.get_ref().clone();
-    let subs_send: Send = sends.subs;
-    let views_send: Send = sends.views;
-    let videos_send: Send = sends.videos;
-
-    let mut subs: Vec<Msg> = Vec::new();
-    let mut views: Vec<Msg> = Vec::new();
-    let mut videos: Vec<Msg> = Vec::new();
-    {
-        let msg = msg.clone();
-        let subs_vec: Subs = msg.subs.unwrap();
-        let views_vec: Views = msg.views.unwrap();
-        let videos_vec: Videos = msg.videos.unwrap();
-
-        let len: usize = subs_vec.subs.len();
-        for i in 0..len {
-            let id: i32 = subs_vec.id[i];
-            let sub: i32 = subs_vec.subs[i];
-            let value: Msg = (id, sub);
-
-            subs.push(value);
-
-            let id: i32 = views_vec.id[i];
-            let view: i32 = views_vec.views[i];
-            let value: Msg = (id, view);
-
-            views.push(value);
-
-            let id: i32 = videos_vec.id[i];
-            let video: i32 = videos_vec.videos[i];
-            let value: Msg = (id, video);
-
-            videos.push(value);
-        }
-    }
-
-    let subs: Vec<Msg> = subs;
-    let views: Vec<Msg> = views;
-    let videos: Vec<Msg> = videos;
-
-    subs_send.send(subs).expect("Could not send subs");
-    views_send.send(views).expect("Could not send views");
-    videos_send.send(videos).expect("Could not send videos");
-
+    let sender: &Sender<Subs> = state.get_ref();
+    sender.send(t).expect("Could not send protobuf message");
     HttpResponse::Ok().finish()
 }
 
-#[derive(Clone)]
-struct Receivers {
-    subs: Send,
-    views: Send,
-    videos: Send
+pub fn get_insert_str() -> String {
+    let mut str_buffer: String = {
+        let string: &'static str = "INSERT INTO youtube.stats.subs (time, id, subs) VALUES ";
+
+        let capacity: usize = 4 * CACHE_SIZE;
+        let mut str_buffer: String = String::with_capacity(capacity);
+        str_buffer.push_str(string);
+        str_buffer
+    };
+
+    let range: Range<usize> = 0..CACHE_SIZE;
+    let step: usize = 3;
+
+    for i in range.step_by(step) {
+        let string: String = format!("(${},${},${}),", i, i + 1, i + 2);
+        let string: &str = &string.as_str();
+
+        str_buffer.push_str(string);
+    }
+
+    str_buffer
 }
 
-fn main() {
-    println!("Hello, world!");
-    ::std::env::set_var("RUST_LOG", "actix_web=info,actix_server=info");
-    env_logger::init();
-    let sys = actix::System::new("db-writer");
+pub fn get_insert_params(store: &Vec<SubsStore>) -> [&ToSql; CACHE_SIZE * 3] {
+    let mut params: [&ToSql; CACHE_SIZE * 3] = [&0; CACHE_SIZE * 3];
+    let mut counter: usize = 0;
 
-    let (subs_tx, subs_rx): Chan = channel();
-    let (views_tx, views_rx): Chan = channel();
-    let (videos_tx, videos_rx): Chan = channel();
+    for sub in store {
+        params[counter] = &sub.time;
+        counter += 1;
 
-    thread::spawn(move || {
-        let params: &'static str = POSTGRESQL_URL;
-        let tls: postgres::TlsMode = postgres::TlsMode::None;
+        params[counter] = &sub.id;
+        counter += 1;
 
-        let conn: postgres::Connection =
-            postgres::Connection::connect(params, tls).unwrap();
+        params[counter] = &sub.subs;
+        counter += 1;
+    }
 
-        loop {
-            println!("Waiting for subs message");
-            let subs: Payload = subs_rx.recv().expect("Something went wrong with sub message");
-            println!("Got subs msg {:?}", subs);
+    params
+}
 
-            let subs: Payload = subs_check(&conn, &subs);
-            println!("Inserting subs {:?}", subs);
-        }
-    });
-
-    thread::spawn(move || {
-        let params: &'static str = POSTGRESQL_URL;
-        let tls: postgres::TlsMode = postgres::TlsMode::None;
-
-        let conn: postgres::Connection =
-            postgres::Connection::connect(params, tls).unwrap();
-
-        loop {
-            println!("Waiting for views message");
-            let views: Payload = views_rx.recv().expect("Something went wrong with views message");
-            println!("Got views msg {:?}", views);
-
-            let views: Payload = views_check(&conn, &views);
-            println!("Inserting views {:?}", views);
-        }
-    });
+pub fn main() {
+    let sys: SystemRunner = {
+        println!("Hello, world!");
+        ::std::env::set_var("RUST_LOG", "actix_web=info,actix_server=info");
+        env_logger::init();
+        System::new("db-writer")
+    };
+    let (sx, rx): (Sender<Subs>, Receiver<Subs>) = channel();
 
     thread::spawn(move || {
-        let params: &'static str = POSTGRESQL_URL;
-        let tls: postgres::TlsMode = postgres::TlsMode::None;
+        let conn: Connection = {
+            let params: &'static str = statics::POSTGRESQL_URL;
+            let tls: TlsMode = TlsMode::None;
 
-        let conn: postgres::Connection =
-            postgres::Connection::connect(params, tls).unwrap();
+            Connection::connect(params, tls).expect("Could not connect to database")
+        };
+        let query: Statement = {
+            let query: String = get_insert_str();
+            let query: &str = query.as_str();
+
+            conn.prepare_cached(query)
+                .expect("Could not create prepared statement")
+        };
+
+        let mut store: Vec<SubsStore> = {
+            let capacity: usize = 2 * CACHE_SIZE;
+            Vec::with_capacity(capacity)
+        };
 
         loop {
-            println!("Waiting for videos message");
-            let videos: Payload = videos_rx.recv().expect("Something went wrong with videos message");
-            println!("Got videos msg {:?}", videos);
+            {
+                println!("Waiting for message message");
+                let other: Subs = rx.recv().expect("Could not retrieve message");
+                println!("Got message {:?}", other);
 
-            let videos: Payload = videos_check(&conn, &videos);
-            println!("Inserting videos {:?}", videos);
+                {
+                    let mut other: Vec<SubsStore> = other.to_store();
+                    store.append(&mut other);
+                }
+            }
+
+            if store.len() >= CACHE_SIZE {
+                println!("Inserting {} entries", CACHE_SIZE);
+                let params: [&ToSql; CACHE_SIZE * 3] = get_insert_params(&store);
+                query.execute(&params[..])
+                    .expect("Could not insert values");
+
+                let range: Range<usize> = 0..CACHE_SIZE;
+                store.drain(range);
+            }
         }
     });
 
     HttpServer::new(move || App::new()
-        .data(Receivers {
-            subs: subs_tx.clone(),
-            views: views_tx.clone(),
-            videos: videos_tx.clone()
-        })
+        .data(sx.clone())
         .wrap(middleware::Logger::default())
         .service(
             resource("/put")
@@ -263,6 +183,6 @@ fn main() {
     .workers(8)
     .start();
 
-    println!("Started http server: 0.0.0.0:8081");
+    println!("Started http server: 0.0.0.0:8080");
     let _ = sys.run();
 }
