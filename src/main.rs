@@ -184,6 +184,5 @@ pub fn main() {
     .workers(8)
     .start();
 
-    println!("Started http server: 0.0.0.0:8080");
     let _ = sys.run();
 }
