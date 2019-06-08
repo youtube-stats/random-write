@@ -28,66 +28,20 @@ pub mod types {
 }
 
 #[allow(non_snake_case)]
-#[derive(Deserialize, Serialize)]
-pub struct PageInfoType {
-    #[allow(dead_code)]
-    totalResults: u8,
-
-    #[allow(dead_code)]
-    resultsPerPage: u8
+#[derive(Serialize, Deserialize)]
+pub struct SlimSub {
+    id: i32,
+    sub: i32
 }
 
 #[allow(non_snake_case)]
-#[derive(Deserialize, Serialize)]
-pub struct StatisticsType {
-    #[allow(dead_code)]
-    viewCount: String,
-
-    #[allow(dead_code)]
-    commentCount: String,
-
-    subscriberCount: String,
-
-    #[allow(dead_code)]
-    hiddenSubscriberCount: bool,
-
-    #[allow(dead_code)]
-    videoCount: String
+#[derive(Serialize, Deserialize)]
+pub struct YoutubeSlim {
+    items: Vec<SlimSub>
 }
 
-#[allow(non_snake_case)]
-#[derive(Deserialize, Serialize)]
-pub struct  ItemType {
-    #[allow(dead_code)]
-    kind: String,
-
-    #[allow(dead_code)]
-    etag: String,
-
-    id: String,
-    statistics: StatisticsType
-}
-
-#[allow(non_snake_case)]
-#[derive(Deserialize, Serialize)]
-pub struct YoutubeResponseType {
-    #[allow(dead_code)]
-    kind: String,
-
-    #[allow(dead_code)]
-    etag: String,
-
-    #[allow(dead_code)]
-    nextPageToken: String,
-
-    #[allow(dead_code)]
-    pageInfo: PageInfoType,
-
-    items: Vec<ItemType>
-}
-
-impl YoutubeResponseType {
-    pub fn to_store(self: &YoutubeResponseType) -> Vec<SubsStore> {
+impl YoutubeSlim {
+    pub fn to_store(self: &YoutubeSlim) -> Vec<SubsStore> {
         let mut store: Vec<SubsStore> = Vec::new();
 
         for item in &self.items {
@@ -97,10 +51,8 @@ impl YoutubeResponseType {
                 .as_secs();
             let time: i32 = time as i32;
 
-            let ids: i32 = item.id.parse::<i32>()
-                .expect("Could not convert string to i32");
-            let subs: i32 = item.statistics.subscriberCount.parse::<i32>()
-                .expect("Could not convert subs to i32");
+            let ids: i32 = item.id;
+            let subs: i32 = item.sub;
 
             let sub_store: SubsStore = SubsStore {
                 time,
@@ -126,8 +78,8 @@ use statics::CACHE_SIZE;
 use actix_web::web::{Json, resource, post, Data};
 use std::time::SystemTime;
 
-pub fn handler(item: Json<YoutubeResponseType>, state: Data<Sender<YoutubeResponseType>>) -> HttpResponse {
-    let sender: &Sender<YoutubeResponseType> = state.get_ref();
+pub fn handler(item: Json<YoutubeSlim>, state: Data<Sender<YoutubeSlim>>) -> HttpResponse {
+    let sender: &Sender<YoutubeSlim> = state.get_ref();
     sender.send(item.0).expect("Could not send protobuf message");
 
     HttpResponse::Ok().finish()
@@ -182,7 +134,7 @@ pub fn main() {
         env_logger::init();
         System::new("db-writer")
     };
-    let (sx, rx): (Sender<YoutubeResponseType>, Receiver<YoutubeResponseType>) = channel();
+    let (sx, rx): (Sender<YoutubeSlim>, Receiver<YoutubeSlim>) = channel();
 
     thread::spawn(move || {
         let conn: Connection = {
@@ -207,7 +159,7 @@ pub fn main() {
         loop {
             {
                 println!("Waiting for message");
-                let other: YoutubeResponseType = rx.recv().expect("Could not retrieve message");
+                let other: YoutubeSlim = rx.recv().expect("Could not retrieve message");
                 println!("Got message {:?}", serde_json::to_string(&other).expect("Could not serialize"));
 
                 {
