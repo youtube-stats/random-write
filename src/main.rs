@@ -2,44 +2,22 @@ extern crate actix;
 extern crate actix_web;
 extern crate env_logger;
 extern crate postgres;
-extern crate quick_protobuf;
+extern crate serde;
+extern crate serde_json;
 
 use actix::System;
 use actix::SystemRunner;
-use actix_web::*;
-use actix_web::web::{Data, resource, post};
+use actix_web::{HttpResponse, HttpServer, App, middleware};
 use postgres::Connection;
 use postgres::TlsMode;
 use postgres::stmt::Statement;
 use postgres::types::ToSql;
-use quick_protobuf::Writer;
+use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use std::sync::mpsc::{Sender, Receiver};
 use std::sync::mpsc::channel;
 use std::thread;
-use types::SubsStore;
 
-pub mod message;
-use message::Subs;
-
-impl Subs {
-    pub fn to_store(self: &Subs) -> Vec<SubsStore> {
-        let mut store: Vec<SubsStore> = Vec::new();
-        let len: usize = self.subs.len();
-
-        for i in 0..len {
-            let value: SubsStore = SubsStore {
-                time: self.time[i],
-                ids: self.ids[i],
-                subs: self.subs[i]
-            };
-
-            store.push(value)
-        }
-
-        store
-    }
-}
 
 pub mod types {
     pub struct SubsStore {
@@ -49,19 +27,109 @@ pub mod types {
     }
 }
 
+#[allow(non_snake_case)]
+#[derive(Deserialize, Serialize)]
+pub struct PageInfoType {
+    #[allow(dead_code)]
+    totalResults: u8,
+
+    #[allow(dead_code)]
+    resultsPerPage: u8
+}
+
+#[allow(non_snake_case)]
+#[derive(Deserialize, Serialize)]
+pub struct StatisticsType {
+    #[allow(dead_code)]
+    viewCount: String,
+
+    #[allow(dead_code)]
+    commentCount: String,
+
+    subscriberCount: String,
+
+    #[allow(dead_code)]
+    hiddenSubscriberCount: bool,
+
+    #[allow(dead_code)]
+    videoCount: String
+}
+
+#[allow(non_snake_case)]
+#[derive(Deserialize, Serialize)]
+pub struct  ItemType {
+    #[allow(dead_code)]
+    kind: String,
+
+    #[allow(dead_code)]
+    etag: String,
+
+    id: String,
+    statistics: StatisticsType
+}
+
+#[allow(non_snake_case)]
+#[derive(Deserialize, Serialize)]
+pub struct YoutubeResponseType {
+    #[allow(dead_code)]
+    kind: String,
+
+    #[allow(dead_code)]
+    etag: String,
+
+    #[allow(dead_code)]
+    nextPageToken: String,
+
+    #[allow(dead_code)]
+    pageInfo: PageInfoType,
+
+    items: Vec<ItemType>
+}
+
+impl YoutubeResponseType {
+    pub fn to_store(self: &YoutubeResponseType) -> Vec<SubsStore> {
+        let mut store: Vec<SubsStore> = Vec::new();
+
+        for item in &self.items {
+            let time: u64 = SystemTime::now()
+                .duration_since(SystemTime::UNIX_EPOCH)
+                .expect("Could not get timestamp")
+                .as_secs();
+            let time: i32 = time as i32;
+
+            let ids: i32 = item.id.parse::<i32>()
+                .expect("Could not convert string to i32");
+            let subs: i32 = item.statistics.subscriberCount.parse::<i32>()
+                .expect("Could not convert subs to i32");
+
+            let sub_store: SubsStore = SubsStore {
+                time,
+                ids,
+                subs
+            };
+
+            store.push(sub_store);
+        }
+
+        store
+    }
+}
+
+use types::SubsStore;
+
 pub mod statics {
     pub const POSTGRESQL_URL: &'static str = "postgresql://admin@localhost:5432/youtube";
     pub const CACHE_SIZE: usize = 500;
 }
 
 use statics::CACHE_SIZE;
+use actix_web::web::{Json, resource, post, Data};
+use std::time::SystemTime;
 
-pub fn handler(req: HttpRequest, state: Data<Sender<Subs>>) -> HttpResponse {
-    /*let t: Subs = msg.0;
-    println!("Received model: {:?}", t);
+pub fn handler(item: Json<YoutubeResponseType>, state: Data<Sender<YoutubeResponseType>>) -> HttpResponse {
+    let sender: &Sender<YoutubeResponseType> = state.get_ref();
+    sender.send(item.0).expect("Could not send protobuf message");
 
-    let sender: &Sender<Subs> = state.get_ref();
-    sender.send(t).expect("Could not send protobuf message");*/
     HttpResponse::Ok().finish()
 }
 
@@ -114,7 +182,7 @@ pub fn main() {
         env_logger::init();
         System::new("db-writer")
     };
-    let (sx, rx): (Sender<Subs>, Receiver<Subs>) = channel();
+    let (sx, rx): (Sender<YoutubeResponseType>, Receiver<YoutubeResponseType>) = channel();
 
     thread::spawn(move || {
         let conn: Connection = {
@@ -139,8 +207,8 @@ pub fn main() {
         loop {
             {
                 println!("Waiting for message");
-                let other: Subs = rx.recv().expect("Could not retrieve message");
-                println!("Got message {:?}", other);
+                let other: YoutubeResponseType = rx.recv().expect("Could not retrieve message");
+                println!("Got message {:?}", serde_json::to_string(&other).expect("Could not serialize"));
 
                 {
                     let mut other: Vec<SubsStore> = other.to_store();
@@ -163,9 +231,7 @@ pub fn main() {
     HttpServer::new(move || App::new()
         .data(sx.clone())
         .wrap(middleware::Logger::default())
-        .service(
-            resource("/post")
-                .route(post().to(handler)))
+        .service(resource("/post").route(post().to(handler)))
     ).bind("0.0.0.0:8081")
     .expect("Can not bind to port 8081")
     .workers(8)
