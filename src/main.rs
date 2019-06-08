@@ -88,7 +88,7 @@ pub fn get_insert_str() -> String {
         str_buffer
     };
 
-    let range: Range<usize> = 0..CACHE_SIZE;
+    let range: Range<usize> = 1..(CACHE_SIZE + 1);
     let step: usize = 3;
 
     for i in range.step_by(step) {
