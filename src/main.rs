@@ -1,120 +1,33 @@
 extern crate actix;
+extern crate actix_protobuf;
 extern crate actix_web;
-extern crate chrono;
+extern crate bytes;
 extern crate env_logger;
 extern crate postgres;
-extern crate serde;
-extern crate serde_json;
+extern crate prost;
+#[macro_use]
+extern crate prost_derive;
+
+pub mod types;
+use types::{ProtoSubs,SubsStore};
+
+pub mod statics;
+use statics::{CACHE_SIZE,POSTGRESQL_URL};
+
+pub mod lib;
+use lib::{get_insert_str,handler};
 
 use actix::System;
 use actix::SystemRunner;
 use actix_web::{HttpResponse, HttpServer, App, middleware};
-use chrono::prelude::*;
-use postgres::Connection;
-use postgres::TlsMode;
+use actix_web::web::{resource, post, Data};
+use chrono::prelude::{DateTime,Local};
+use postgres::{Connection,TlsMode};
 use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use std::sync::mpsc::{Sender, Receiver};
 use std::sync::mpsc::channel;
 use std::thread;
-
-
-pub mod types {
-    use chrono::prelude::*;
-
-    pub struct SubsStore {
-        pub time: DateTime<Local>,
-        pub ids: i32,
-        pub subs: i32
-    }
-}
-
-#[allow(non_snake_case)]
-#[derive(Serialize, Deserialize)]
-pub struct SlimSub {
-    id: i32,
-    sub: i32
-}
-
-#[allow(non_snake_case)]
-#[derive(Serialize, Deserialize)]
-pub struct YoutubeSlim {
-    items: Vec<SlimSub>
-}
-
-impl YoutubeSlim {
-    pub fn to_store(self: &YoutubeSlim) -> Vec<SubsStore> {
-        let mut store: Vec<SubsStore> = Vec::new();
-
-        for item in &self.items {
-            let time: DateTime<Local> = Local::now();
-
-            let ids: i32 = item.id;
-            let subs: i32 = item.sub;
-
-            let sub_store: SubsStore = SubsStore {
-                time,
-                ids,
-                subs
-            };
-
-            store.push(sub_store);
-        }
-
-        store
-    }
-}
-
-use types::SubsStore;
-
-pub mod statics {
-    pub const POSTGRESQL_URL: &'static str = "postgresql://admin@localhost:5432/youtube";
-    pub const CACHE_SIZE: usize = 500;
-}
-
-use statics::CACHE_SIZE;
-use actix_web::web::{Json, resource, post, Data};
-
-pub fn handler(item: Json<YoutubeSlim>, state: Data<Sender<YoutubeSlim>>) -> HttpResponse {
-    let sender: &Sender<YoutubeSlim> = state.get_ref();
-    sender.send(item.0).expect("Could not send protobuf message");
-
-    HttpResponse::Ok().finish()
-}
-
-pub fn get_insert_str(store: &Vec<SubsStore>) -> String {
-    let mut str_buffer: String = {
-        let first: &SubsStore = store.first().expect("Store is empty");
-
-        let string: String =
-            format!("INSERT INTO youtube.stats.subs (time, id, subs) VALUES ('{}',{},{})",
-                    first.time,
-                    first.ids,
-                    first.subs);
-
-        let string: &str = string.as_ref();
-
-        let capacity: usize = 4 * CACHE_SIZE;
-        let mut str_buffer: String = String::with_capacity(capacity);
-        str_buffer.push_str(string);
-        str_buffer
-    };
-
-    let range: Range<usize> = 4..CACHE_SIZE;
-    let step: usize = 3;
-
-    for i in range.step_by(step) {
-        let item: &SubsStore = &store[i];
-
-        let string: String =
-            format!(",('{}',{},{})", item.time, item.ids, item.subs);
-        let string: &str = &string.as_str();
-
-        str_buffer.push_str(string);
-    }
-
-    str_buffer
-}
 
 pub fn main() {
     let sys: SystemRunner = {
