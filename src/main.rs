@@ -71,7 +71,7 @@ pub fn main() {
             };
 
             match (req.method(), req.uri().path()) {
-                (&Method::POST, "/echo") => good_resp,
+                (&Method::POST, "/post") => good_resp,
                 _                        => bad_resp
             }
         };
