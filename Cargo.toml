@@ -9,12 +9,7 @@ name = "db-writer"
 path = "src/main.rs"
 
 [dependencies]
-actix = "0.8.2"
-actix-protobuf = "0.4.0"
-actix-web = "1.0.0"
-bytes = "0.4.12"
 chrono = "0.4.6"
-env_logger = "0.6.1"
+hyper = "0.12.29"
 postgres = { version = "0.15.2", features = ["with-chrono"] }
-prost = "0.5"
-prost-derive = "0.5"
+quick-protobuf = "0.6.3"
