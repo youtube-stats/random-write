@@ -9,6 +9,7 @@ name = "db-writer"
 path = "src/main.rs"
 
 [dependencies]
+bytes = "0.4.12"
 chrono = "0.4.6"
 futures = "0.1.27"
 hyper = "0.12.29"

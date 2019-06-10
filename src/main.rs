@@ -1,3 +1,4 @@
+extern crate bytes;
 extern crate chrono;
 extern crate futures;
 extern crate hyper;
@@ -24,6 +25,8 @@ use ::std::sync::mpsc::{Sender, Receiver};
 use ::std::sync::mpsc::channel;
 use ::std::thread;
 use crate::quick_protobuf::{serialize_into_vec, deserialize_from_slice};
+use hyper::service::service_fn_ok;
+use bytes::Bytes;
 
 fn echo(req: Request<Body>) -> impl Future<Item = Response<Body>, Error = hyper::Error> {
     let (parts, body) = req.into_parts();
@@ -32,6 +35,7 @@ fn echo(req: Request<Body>) -> impl Future<Item = Response<Body>, Error = hyper:
         (Method::POST, "/") => {
             let entire_body = body.concat2();
             let resp = entire_body.map(|body| {
+                println!("Size of body {}", body.len());
                 let body = Body::from(format!("Read {} bytes", body.len()));
                 Response::new(body)
             });
@@ -80,43 +84,57 @@ pub fn main() {
 
     {
         let addr: SocketAddr = ([0u8, 0u8, 0u8, 0u8], 8082u16).into();
-        /*let f: fn(Request<Body>) -> Response<Body> = |req: Request<Body>| {
-            let good_resp: Response<Body> = {
+        let f = |req: Request<Body>| {
+            let method: Method = req.method().clone();
+            let path: String = {
+                let path: &str = req.uri().path();
+
+                path.to_string().clone()
+            };
+            let endpoint: String = format!("/post");
+
+            let bytes = {
+                let body: Body = req.into_body();
+                let entire_body = body.concat2();
+                let mut bytes: Vec<u8> = Vec::new();
+
+                let resp = entire_body.map(|body| {
+                    let mut other: Bytes = body.into_bytes();
+                    let mut other: Vec<u8> = other.to_vec();
+
+                    println!("Read {} bytes", other.len());
+                    bytes.append(&mut other);
+                });
+
+                bytes
+            };
+
+            let good_resp = {
                 let mut message: Ack = Ack::default();
                 message.ok = true;
                 let vec: Vec<u8> = serialize_into_vec(&message)
                     .expect("Cannot serialize `foobar`");
-                let body: Body = Body::from(vec);
 
+                let body: Body = Body::from(vec);
                 Response::new(body)
             };
-            let bad_resp: Response<Body> = {
+            let bad_resp = {
                 let mut message: Ack = Ack::default();
                 message.ok = false;
                 let vec: Vec<u8> = serialize_into_vec(&message)
                     .expect("Cannot serialize `foobar`");
-                let body: Body = Body::from(vec);
 
+                let body: Body = Body::from(vec);
                 Response::new(body)
             };
 
-            let method: &Method = req.method();
-            let path: &str = req.uri().path();
-
-            let bytes: &[u8] = {
-                let bytes: &[u8] = req.into_body().into();
-
-                bytes
-            };
-            let parsed_msg = deserialize_from_slice(bytes);
-
             match (method, path) {
-                (&Method::POST, "/post") => good_resp,
+                (Method::POST, endpoint) => good_resp,
                 _                        => bad_resp
             }
-        };*/
+        };
         let new_service = move || {
-            service_fn(echo)
+            service_fn_ok(f)
         };
 
         let server = Server::bind(&addr)
