@@ -11,7 +11,7 @@ use statics::{CACHE_SIZE, POSTGRESQL_URL};
 pub mod message;
 use message::Ack;
 
-use hyper::{Response, Server, Body, Request};
+use hyper::{Response, Server, Body, Request, Method, StatusCode};
 use hyper::rt::Future;
 use hyper::service::service_fn_ok;
 use postgres::{Connection, TlsMode};
@@ -53,12 +53,27 @@ pub fn main() {
         let addr: SocketAddr = ([0u8, 0u8, 0u8, 0u8], 8082u16).into();
 
         let f = |req: Request<Body>| {
-            let mut message: Ack = Ack::default();
-            message.ok = true;
-            let vec: Vec<u8> = serialize_into_vec(&message)
-                .expect("Cannot serialize `foobar`");
-            let body: Body = Body::from(vec);
-            Response::new(body)
+            let good_resp: Response<Body> = {
+                let mut message: Ack = Ack::default();
+                message.ok = true;
+                let vec: Vec<u8> = serialize_into_vec(&message)
+                    .expect("Cannot serialize `foobar`");
+                let body: Body = Body::from(vec);
+
+                Response::new(body)
+            };
+            let bad_resp: Response<Body> = {
+                let body: Body = Body::empty();
+                let mut resp: Response<Body> = Response::new(body);
+                *resp.status_mut() = StatusCode::NOT_FOUND;
+
+                resp
+            };
+
+            match (req.method(), req.uri().path()) {
+                (&Method::POST, "/echo") => good_resp,
+                _                        => bad_resp
+            }
         };
 
         let new_service = move || {
