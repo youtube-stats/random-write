@@ -51,7 +51,7 @@ pub fn main() {
 
     {
         let addr: SocketAddr = ([0u8, 0u8, 0u8, 0u8], 8082u16).into();
-        let f = |req: Request<Body>| {
+        let f: fn(Request<Body>) -> Response<Body> = |req: Request<Body>| {
             let good_resp: Response<Body> = {
                 let mut message: Ack = Ack::default();
                 message.ok = true;
