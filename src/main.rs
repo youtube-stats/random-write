@@ -49,24 +49,26 @@ pub fn main() {
         }
     });
 
-    let addr: SocketAddr = ([0u8, 0u8, 0u8, 0u8], 8081u16).into();
+    {
+        let addr: SocketAddr = ([0u8, 0u8, 0u8, 0u8], 8082u16).into();
 
-    let f = |req: Request<Body>| {
-        let mut message: Ack = Ack::default();
-        message.ok = true;
-        let vec: Vec<u8> = serialize_into_vec(&message)
-            .expect("Cannot serialize `foobar`");
-        let body: Body = Body::from(vec);
-        Response::new(body)
-    };
+        let f = |req: Request<Body>| {
+            let mut message: Ack = Ack::default();
+            message.ok = true;
+            let vec: Vec<u8> = serialize_into_vec(&message)
+                .expect("Cannot serialize `foobar`");
+            let body: Body = Body::from(vec);
+            Response::new(body)
+        };
 
-    let new_service = move || {
-        service_fn_ok(f)
-    };
+        let new_service = move || {
+            service_fn_ok(f)
+        };
 
-    let server = Server::bind(&addr)
-        .serve(new_service)
-        .map_err(move |e| eprintln!("server error: {}", e));
+        let server = Server::bind(&addr)
+            .serve(new_service)
+            .map_err(move |e| eprintln!("server error: {}", e));
 
-    run(server);
+        run(server);
+    }
 }
