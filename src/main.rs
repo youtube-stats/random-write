@@ -105,7 +105,7 @@ pub fn main() {
     }
 
     {
-        let addr: SocketAddr = ([0u8, 0u8, 0u8, 0u8], 8082u16).into();
+        let addr: SocketAddr = ([0u8, 0u8, 0u8, 0u8], 8081u16).into();
 
         let new_service = move || {
             let sx: Sender<SubMessage> = {
