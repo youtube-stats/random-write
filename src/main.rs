@@ -51,7 +51,6 @@ pub fn main() {
 
     {
         let addr: SocketAddr = ([0u8, 0u8, 0u8, 0u8], 8082u16).into();
-
         let f = |req: Request<Body>| {
             let good_resp: Response<Body> = {
                 let mut message: Ack = Ack::default();
@@ -63,11 +62,13 @@ pub fn main() {
                 Response::new(body)
             };
             let bad_resp: Response<Body> = {
-                let body: Body = Body::empty();
-                let mut resp: Response<Body> = Response::new(body);
-                *resp.status_mut() = StatusCode::NOT_FOUND;
+                let mut message: Ack = Ack::default();
+                message.ok = false;
+                let vec: Vec<u8> = serialize_into_vec(&message)
+                    .expect("Cannot serialize `foobar`");
+                let body: Body = Body::from(vec);
 
-                resp
+                Response::new(body)
             };
 
             match (req.method(), req.uri().path()) {
@@ -75,7 +76,6 @@ pub fn main() {
                 _                        => bad_resp
             }
         };
-
         let new_service = move || {
             service_fn_ok(f)
         };
