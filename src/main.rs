@@ -17,21 +17,25 @@ use crate::postgres::{Connection, TlsMode};
 use crate::quick_protobuf::{serialize_into_vec, deserialize_from_slice};
 use ::std::net::SocketAddr;
 use std::ops::Range;
+use rust_channel_cache::Channels;
 
 pub fn main() {
-    {
-        let addr: SocketAddr = ([0u8, 0u8, 0u8, 0u8], 8082u16).into();
+    let addr: SocketAddr = ([0u8, 0u8, 0u8, 0u8], 8082u16).into();
+
+    loop {
+
+        let store: Channels = Channels::init();
 
         let new_service = || {
-            service_fn_ok(|req: Request<Body>| {
+            service_fn_ok(|_| {
                 Response::new(Body::empty())
             })
         };
 
-        let server = Server::bind(&addr)
+        let f = Server::bind(&addr)
             .serve(new_service)
             .map_err(|e| eprintln!("server error: {}", e));
 
-        run(server);
+        run(f);
     }
 }
