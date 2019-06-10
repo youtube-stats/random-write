@@ -6,3 +6,12 @@ message ChannelMessage {
     repeated int32 ids = 1;
     repeated string serials = 2;
 }
+
+message SubMessage {
+    repeated int32 ids = 1;
+    repeated int32 subs = 2;
+}
+
+message Ack {
+    bool ok = 1;
+}
