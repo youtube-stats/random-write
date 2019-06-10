@@ -40,7 +40,7 @@ impl Channels {
             let serial: [u8; 24] = {
                 let chars: &[u8] = serial.as_bytes();
                 let mut serial: [u8; 24] = [0u8; 24];
-                for i in 0..25 {
+                for i in 0..24 {
                     serial[i] = chars[i];
                 }
 
