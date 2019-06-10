@@ -77,6 +77,11 @@ impl Channels {
     pub fn get_msg(self: &Channels, rng: &ThreadRng) -> ChannelMessage {
         let sampled: Channels = self.get_50(rng);
 
-        ChannelMessage::default()
+        let mut msg: ChannelMessage = ChannelMessage::default();
+        let mut ids: IdsMessage = msg.ids.expect("Could not get ids");
+
+        ids.id_1.mu = sampled.rows[0].id;
+
+        msg
     }
 }
