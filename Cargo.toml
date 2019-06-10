@@ -1,16 +1,19 @@
 [package]
-name = "rust-channel-cache"
+name = "rust-random-write"
 version = "0.1.0"
 authors = ["Salvador Guzman <guzmansalv@gmail.com>"]
 edition = "2018"
 
 [[bin]]
-name = "cache"
+name = "random"
 path = "src/main.rs"
 
 [dependencies]
-chrono = "0.4.6"
-hyper = "0.12.29"
-postgres = "0.15.2"
+openssl-sys = "*"
 quick-protobuf = "0.6.3"
-rand = "0.6.5"
+reqwest = "0.9.18"
+
+[features]
+# Force openssl-sys to staticly link in the openssl library. Necessary when
+# cross compiling to x86_64-unknown-linux-musl.
+vendored = ["openssl-sys/vendored"]

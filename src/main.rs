@@ -1,41 +1,43 @@
-extern crate chrono;
-extern crate hyper;
-extern crate postgres;
 extern crate quick_protobuf;
-extern crate rand;
+extern crate reqwest;
 
-use crate::hyper::{Response, Server, Body};
-use crate::hyper::rt::{Future, run};
-use crate::hyper::service::service_fn_ok;
-use ::std::net::SocketAddr;
-use rust_channel_cache::Channels;
-use rand::rngs::ThreadRng;
-use rand::thread_rng;
+pub mod statics;
+use statics::URL;
+
+pub mod message;
+use message::ChannelMessage;
+use quick_protobuf::deserialize_from_slice;
+use std::collections::HashMap;
 
 pub fn main() {
-    let addr: SocketAddr = ([0u8, 0u8, 0u8, 0u8], 8082u16).into();
+    println!("Starting random service");
 
-    let store: Channels = Channels::init();
+    loop {
+        let url: &'static str = URL;
+        let bytes: &[u8] = reqwest::get(url)
+            .expect("Could not get response")
+            .text()
+            .expect("Could not get body")
+            .as_bytes();
 
-    let new_service = move || {
-        let store: &Channels = &store;
-        let store: Channels = store.clone();
+        let msg: ChannelMessage = deserialize_from_slice(bytes)
+            .expect("Could not deserialize body");
 
-        service_fn_ok(move |_| {
-            let mut rng: ThreadRng = thread_rng();
-            let store: &Channels = &store;
-            let store: Channels = store.clone();
+        println!("Got message {:?}", msg);
+        let store: HashMap<String, i32> = {
+            let mut store: HashMap<String, i32> = HashMap::new();
 
-            let vec: &Vec<u8> = &store.get_msg(&mut rng);
-            let body: Body = Body::from(vec.clone());
+            for i in 0..50 {
+                let k: String = msg.serials[i].to_string();
+                let v: i32 = msg.ids[i];
 
-            Response::new(body)
-        })
-    };
+                store.insert(k, v)
+                    .expect("Could not insert into hash");
+            }
 
-    let f = Server::bind(&addr)
-        .serve(new_service)
-        .map_err(|e| eprintln!("server error: {}", e));
+            store
+        };
 
-    run(f);
+        let keys = store.keys().map(|s| s).collect();
+    }
 }

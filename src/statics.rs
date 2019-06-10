@@ -1,2 +1,1 @@
-pub const POSTGRESQL_URL: &'static str = "postgresql://admin@localhost:5432/youtube";
-pub const QUERY: &'static str = "SELECT id, serial FROM youtube.stats.channels";
+pub const URL: &'static str = "http://127.0.0.1:8082/";
