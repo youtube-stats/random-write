@@ -8,6 +8,7 @@ use message::{ChannelMessage, IdsMessage, SerialMessage, SerialsMessage};
 
 pub mod statics;
 use statics::{POSTGRESQL_URL,QUERY};
+use quick_protobuf::serialize_into_vec;
 
 #[derive(Clone)]
 pub struct ChannelRow {
@@ -74,13 +75,13 @@ impl Channels {
         }
     }
 
-    pub fn get_msg(self: &Channels, rng: &ThreadRng) -> ChannelMessage {
+    pub fn get_msg(self: &Channels, rng: &ThreadRng) -> Vec<u8> {
         let sampled: Channels = self.get_50(rng);
 
         let mut msg: ChannelMessage = ChannelMessage::default();
-        let mut ids: IdsMessage = msg.ids.expect("Could not get ids");
-
         {
+            let mut ids: IdsMessage = msg.ids.expect("Could not get ids");
+
             ids.id_1 = sampled.rows[1].id;
             ids.id_2 = sampled.rows[2].id;
             ids.id_3 = sampled.rows[3].id;
@@ -132,8 +133,25 @@ impl Channels {
             ids.id_49 = sampled.rows[49].id;
         }
 
-        let mut serials
 
-        msg
+        {
+            let mut serials: SerialsMessage = msg.serials
+                .expect("Could not get serials");
+            {
+                let mut first: SerialMessage = serials.serial_0
+                    .expect("Could not get serial");
+
+
+                first.word_1 =
+            }
+        }
+
+        msg.ids.unwrap() = ids;
+        msg.serials.unwrap() = serials;
+
+        let bytes: Vec<u8> = serialize_into_vec(&msg)
+            .expect("Could not serialize");
+
+        bytes
     }
 }
