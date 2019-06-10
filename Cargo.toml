@@ -1,16 +1,16 @@
 [package]
-name = "rust-db-writer"
+name = "rust-channel-cache"
 version = "0.1.0"
 authors = ["Salvador Guzman <guzmansalv@gmail.com>"]
 edition = "2018"
 
 [[bin]]
-name = "db-writer"
+name = "cache"
 path = "src/main.rs"
 
 [dependencies]
-bytes = "0.4.12"
 chrono = "0.4.6"
 hyper = "0.12.29"
 postgres = "0.15.2"
 quick-protobuf = "0.6.3"
+rand = "0.6.5"

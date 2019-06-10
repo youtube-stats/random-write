@@ -1,4 +1,6 @@
-pub struct SubStoreDatum {
+pub struct ChannelRow {
     pub id: i32,
-    pub sub: i32
+    pub serial: [char; 24]
 }
+
+impl Ch

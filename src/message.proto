@@ -2,7 +2,119 @@ syntax = "proto3";
 
 package message;
 
+message SerialMessage {
+    uint64 word_1 = 1;
+    uint64 word_2 = 2;
+    uint64 word_3 = 3;
+}
+
+message IdsMessage {
+    int32 id_1 = 1;
+    int32 id_2 = 2;
+    int32 id_3 = 3;
+    int32 id_4 = 4;
+    int32 id_5 = 5;
+    int32 id_6 = 6;
+    int32 id_7 = 7;
+    int32 id_8 = 8;
+    int32 id_9 = 9;
+    int32 id_10 = 10;
+    int32 id_11 = 11;
+    int32 id_12 = 12;
+    int32 id_13 = 13;
+    int32 id_14 = 14;
+    int32 id_15 = 15;
+    int32 id_16 = 16;
+    int32 id_17 = 17;
+    int32 id_18 = 18;
+    int32 id_19 = 19;
+    int32 id_20 = 20;
+    int32 id_21 = 21;
+    int32 id_22 = 22;
+    int32 id_23 = 23;
+    int32 id_24 = 24;
+    int32 id_25 = 25;
+    int32 id_26 = 26;
+    int32 id_27 = 27;
+    int32 id_28 = 28;
+    int32 id_29 = 29;
+    int32 id_30 = 30;
+    int32 id_31 = 31;
+    int32 id_32 = 32;
+    int32 id_33 = 33;
+    int32 id_34 = 34;
+    int32 id_35 = 35;
+    int32 id_36 = 36;
+    int32 id_37 = 37;
+    int32 id_38 = 38;
+    int32 id_39 = 39;
+    int32 id_40 = 40;
+    int32 id_41 = 41;
+    int32 id_42 = 42;
+    int32 id_43 = 43;
+    int32 id_44 = 44;
+    int32 id_45 = 45;
+    int32 id_46 = 46;
+    int32 id_47 = 47;
+    int32 id_48 = 48;
+    int32 id_49 = 49;
+    int32 id_50 = 50;
+}
+
+message SerialsMessage {
+    SerialMessage serial_1 = 1;
+    SerialMessage serial_2 = 2;
+    SerialMessage serial_3 = 3;
+    SerialMessage serial_4 = 4;
+    SerialMessage serial_5 = 5;
+    SerialMessage serial_6 = 6;
+    SerialMessage serial_7 = 7;
+    SerialMessage serial_8 = 8;
+    SerialMessage serial_9 = 9;
+    SerialMessage serial_10 = 10;
+    SerialMessage serial_11 = 11;
+    SerialMessage serial_12 = 12;
+    SerialMessage serial_13 = 13;
+    SerialMessage serial_14 = 14;
+    SerialMessage serial_15 = 15;
+    SerialMessage serial_16 = 16;
+    SerialMessage serial_17 = 17;
+    SerialMessage serial_18 = 18;
+    SerialMessage serial_19 = 19;
+    SerialMessage serial_20 = 20;
+    SerialMessage serial_21 = 21;
+    SerialMessage serial_22 = 22;
+    SerialMessage serial_23 = 23;
+    SerialMessage serial_24 = 24;
+    SerialMessage serial_25 = 25;
+    SerialMessage serial_26 = 26;
+    SerialMessage serial_27 = 27;
+    SerialMessage serial_28 = 28;
+    SerialMessage serial_29 = 29;
+    SerialMessage serial_30 = 30;
+    SerialMessage serial_31 = 31;
+    SerialMessage serial_32 = 32;
+    SerialMessage serial_33 = 33;
+    SerialMessage serial_34 = 34;
+    SerialMessage serial_35 = 35;
+    SerialMessage serial_36 = 36;
+    SerialMessage serial_37 = 37;
+    SerialMessage serial_38 = 38;
+    SerialMessage serial_39 = 39;
+    SerialMessage serial_40 = 40;
+    SerialMessage serial_41 = 41;
+    SerialMessage serial_42 = 42;
+    SerialMessage serial_43 = 43;
+    SerialMessage serial_44 = 44;
+    SerialMessage serial_45 = 45;
+    SerialMessage serial_46 = 46;
+    SerialMessage serial_47 = 47;
+    SerialMessage serial_48 = 48;
+    SerialMessage serial_49 = 49;
+    SerialMessage serial_50 = 50;
+}
+
 message ChannelMessage {
-    repeated int32 ids = 1;
-    repeated string serial = 2;
+    IdsMessage ids = 1;
+    SerialsMessage serial = 2;
 }
