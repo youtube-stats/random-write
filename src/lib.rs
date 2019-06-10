@@ -19,7 +19,7 @@ pub struct StatisticsType {
     #[allow(dead_code)]
     commentCount: String,
 
-    subscriberCount: String,
+    pub subscriberCount: String,
 
     #[allow(dead_code)]
     hiddenSubscriberCount: bool,
@@ -29,7 +29,7 @@ pub struct StatisticsType {
 }
 
 #[allow(non_snake_case)]
-#[derive(:Deserialize)]
+#[derive(Deserialize)]
 pub struct  ItemType {
     #[allow(dead_code)]
     kind: String,
@@ -37,8 +37,8 @@ pub struct  ItemType {
     #[allow(dead_code)]
     etag: String,
 
-    id: String,
-    statistics: StatisticsType
+    pub id: String,
+    pub statistics: StatisticsType
 }
 
 #[allow(non_snake_case)]
@@ -56,5 +56,5 @@ pub struct YoutubeResponseType {
     #[allow(dead_code)]
     pageInfo: PageInfoType,
 
-    items: Vec<ItemType>
+    pub items: Vec<ItemType>
 }

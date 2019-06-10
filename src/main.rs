@@ -7,28 +7,31 @@ pub mod statics;
 use statics::{QUERY_URL, KEY_URL, WRITE_URL};
 
 pub mod message;
-use message::ChannelMessage;
-use quick_protobuf::deserialize_from_slice;
+use message::{SubMessage, ChannelMessage, Ack};
+
+use quick_protobuf::{deserialize_from_slice, serialize_into_vec};
 use std::collections::HashMap;
 use rust_random_write::YoutubeResponseType;
-use std::error::Error;
+use reqwest::Client;
 
 pub fn main() {
     println!("Starting random service");
+    let client: Client = reqwest::Client::new();
 
     loop {
+        let bytes: Vec<u8> = {
+            let url: &'static str = QUERY_URL;
+            let bytes: String = reqwest::get(url)
+                .expect("Could not get response")
+                .text()
+                .expect("Could not get body");
+
+            let bytes: Vec<u8> = bytes.into_bytes().clone();
+            bytes
+        };
+        let bytes: &[u8] = bytes.as_slice();
+
         let msg: ChannelMessage = {
-            let bytes: &[u8] = {
-                let url: &'static str = QUERY_URL;
-                let bytes: &[u8] = reqwest::get(url)
-                    .expect("Could not get response")
-                    .text()
-                    .expect("Could not get body")
-                    .as_bytes();
-
-                bytes
-            };
-
             let msg: ChannelMessage = deserialize_from_slice(bytes)
                 .expect("Could not deserialize body");
 
@@ -49,49 +52,49 @@ pub fn main() {
 
             store
         };
-        let keys: Vec<String> = {
-            let mut keys: Vec<String> = Vec::new();
-
-            for k in store.keys() {
-                let value: String = k.clone();
-                keys.push(value);
-            }
-
-            keys
-        };
-
-        let key: String = {
-            let url: &'static str = QUERY_URL;
-            let key: String = reqwest::get(url)
-                .expect("Could not get response")
-                .text()
-                .expect("Could not get body");
-
-            println!("Got key {}", key);
-            key
-        };
-
-        let keys_str: String = keys.join(",");
-
-        let json_obj: YoutubeResponseType = {
+        let metrics: YoutubeResponseType = {
+            #[allow(unused_assignments)]
             let mut json: Option<YoutubeResponseType> = None;
+
+            let keys: Vec<String> = {
+                let mut keys: Vec<String> = Vec::new();
+
+                for k in store.keys() {
+                    let value: String = k.clone();
+                    keys.push(value);
+                }
+
+                keys
+            };
+            let key: String = {
+                let url: &'static str = KEY_URL;
+                let key: String = reqwest::get(url)
+                    .expect("Could not get response")
+                    .text()
+                    .expect("Could not get body");
+
+                println!("Got key {}", key);
+                key
+            };
+            let keys_str: String = keys.join(",");
 
             loop {
                 let url: String =
                     format!("https://www.googleapis.com/youtube/v3/channels?part=statistics&key={}&id={}",
                             key, keys_str);
+                let url: &str = url.as_str();
 
                 let s: String = reqwest::get(url)
                     .expect("Could not query google api").text()
                     .expect("Could not retrieve json body");
                 let s: &str = s.as_str();
 
-                let json_obj_result: Result<YoutubeResponseType, Error> =
-                    serde_json::from_str(s);
+                println!("Got metrics {}", s);
+
+                let json_obj_result = serde_json::from_str(s);
 
                 if json_obj_result.is_err() {
-                    let err: Error = json_obj_result.err().unwrap();
-                    eprintln!("Failed to parse json - repeating API call: {}", err);
+                    eprintln!("Failed to parse json - repeating API call");
                     continue;
                 }
 
@@ -102,5 +105,53 @@ pub fn main() {
 
             json.unwrap()
         };
+
+        let ack_msg: Ack = {
+            let message: SubMessage = {
+                let mut write_msg: SubMessage = SubMessage::default();
+                let mut ids: Vec<i32> = Vec::new();
+                let mut subs: Vec<i32> = Vec::new();
+
+                println!("Got {} metrics", metrics.items.len());
+                for item in metrics.items {
+                    let k: &str = item.id.as_str();
+
+                    let value: i32 = store.get(k)
+                        .expect("Could not find key").clone();
+
+                    ids.push(value);
+                    let value: i32 = item.statistics.subscriberCount.parse::<i32>()
+                        .expect("Could not parse sub string");
+
+                    subs.push(value);
+                }
+
+                write_msg.ids = ids;
+                write_msg.subs = subs;
+
+                write_msg
+            };
+
+            println!("Sending message to write server {:?}", message);
+
+            let write_data: Vec<u8> = serialize_into_vec(&message)
+                .expect("Could not serialize write message");
+
+            let url: &'static str = WRITE_URL;
+            let write_resp_text: String = client.post(url).body(write_data).send()
+                .expect("Could not reach write server").text()
+                .expect("Could not retrieve response");
+
+            let write_resp_bytes: &[u8] = write_resp_text.as_bytes();
+
+            let ack_msg: Ack = deserialize_from_slice(write_resp_bytes)
+                .expect("Could not deserialize write ack");
+
+            ack_msg
+        };
+
+        if ack_msg.ok {
+            println!("Write server transfer success")
+        }
     }
 }
