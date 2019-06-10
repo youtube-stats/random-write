@@ -1,8 +1,4 @@
-use chrono::prelude::DateTime;
-use chrono::prelude::Local;
-
 pub struct SubStoreDatum {
-    pub time: DateTime<Local>,
-    pub ids: i32,
-    pub subs: i32
+    pub id: i32,
+    pub sub: i32
 }

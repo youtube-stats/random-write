@@ -3,9 +3,8 @@ syntax = "proto3";
 package message;
 
 message SubMessage {
-    uint64 time = 1;
-    repeated int32 ids = 2;
-    repeated int32 subs = 3;
+    repeated int32 ids = 1;
+    repeated int32 subs = 2;
 }
 
 message Ack {

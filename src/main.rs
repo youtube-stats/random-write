@@ -8,7 +8,7 @@ pub mod types;
 use types::SubStoreDatum;
 
 pub mod statics;
-use statics::{CACHE_SIZE, POSTGRESQL_URL};
+use statics::{CACHE_SIZE, POSTGRESQL_URL, INSERT};
 
 pub mod message;
 use message::{Ack, SubMessage};
@@ -18,15 +18,17 @@ use crate::hyper::{Response, Server, Body, Request, Method};
 use crate::hyper::rt::{Future, Stream, run};
 use crate::hyper::service::service_fn_ok;
 use crate::postgres::{Connection, TlsMode};
+use crate::postgres::transaction::Transaction;
+use crate::quick_protobuf::{serialize_into_vec, deserialize_from_slice};
 use ::std::net::SocketAddr;
 use ::std::sync::mpsc::{Sender, Receiver};
 use ::std::sync::mpsc::channel;
 use ::std::thread;
-use crate::quick_protobuf::{serialize_into_vec, deserialize_from_slice};
-use std::sync::Arc;
+use crate::statics::DRAIN_RANGE;
+use std::ops::Range;
 
 pub fn main() {
-    let (mut sx, mut rx): (Sender<SubMessage>, Receiver<SubMessage>) = channel();
+    let (sx, rx): (Sender<SubMessage>, Receiver<SubMessage>) = channel();
 
     {
         let f = move || {
@@ -49,12 +51,56 @@ pub fn main() {
                         .expect("Could not retrieve message");
                     println!("Got message {:?}", other);
 
+                    {
+                        let mut other: Vec<SubStoreDatum> = {
+                            let mut msg_store: Vec<SubStoreDatum> = Vec::new();
 
+                            for i in 0..other.ids.len() {
+                                let id: i32 = other.ids[i];
+                                let sub: i32 = other.subs[i];
+
+                                let value: SubStoreDatum = SubStoreDatum {
+                                    id,
+                                    sub
+                                };
+                                msg_store.push(value);
+                            }
+
+                            msg_store
+                        };
+                        store.append(&mut other);
+                    }
                     println!("New size of store is {}", store.len());
+
+                    if store.len() >= CACHE_SIZE {
+                        println!("Writing {} entries", CACHE_SIZE);
+
+                        {
+                            let trans: Transaction = conn.transaction()
+                                .expect("Could not start transaction");
+
+                            let query: &'static str = INSERT;
+                            for i in DRAIN_RANGE {
+                                let sub_row: &SubStoreDatum = &store[i];
+                                let id: &i32 =  &sub_row.id;
+                                let sub: &i32 = &sub_row.sub;
+
+                                trans.execute(query, &[id, sub])
+                                    .expect("Could not insert row");
+                            }
+
+                            trans.commit()
+                                .expect("Could not commit transactrion block");
+                        }
+
+                        let range: Range<usize> = DRAIN_RANGE;
+                        store.drain(range);
+
+                        println!("New store size is {}", store.len());
+                    }
                 }
             }
         };
-
         thread::spawn(f);
     }
 
@@ -81,7 +127,7 @@ pub fn main() {
                     let entire_body = body.concat2();
                     let mut bytes: Vec<u8> = Vec::new();
 
-                    let resp = entire_body.map(|body| {
+                    let _ = entire_body.map(|body| {
                         let other: Bytes = body.into_bytes();
                         let mut other: Vec<u8> = other.to_vec();
 
