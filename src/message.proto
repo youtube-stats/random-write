@@ -116,5 +116,5 @@ message SerialsMessage {
 
 message ChannelMessage {
     IdsMessage ids = 1;
-    SerialsMessage serial = 2;
+    SerialsMessage serials = 2;
 }

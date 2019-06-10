@@ -510,7 +510,7 @@ impl MessageWrite for SerialsMessage {
 #[derive(Debug, Default, PartialEq, Clone)]
 pub struct ChannelMessage {
     pub ids: Option<message::IdsMessage>,
-    pub serial: Option<message::SerialsMessage>,
+    pub serials: Option<message::SerialsMessage>,
 }
 
 impl<'a> MessageRead<'a> for ChannelMessage {
@@ -519,7 +519,7 @@ impl<'a> MessageRead<'a> for ChannelMessage {
         while !r.is_eof() {
             match r.next_tag(bytes) {
                 Ok(10) => msg.ids = Some(r.read_message::<message::IdsMessage>(bytes)?),
-                Ok(18) => msg.serial = Some(r.read_message::<message::SerialsMessage>(bytes)?),
+                Ok(18) => msg.serials = Some(r.read_message::<message::SerialsMessage>(bytes)?),
                 Ok(t) => { r.read_unknown(bytes, t)?; }
                 Err(e) => return Err(e),
             }
@@ -532,12 +532,12 @@ impl MessageWrite for ChannelMessage {
     fn get_size(&self) -> usize {
         0
         + self.ids.as_ref().map_or(0, |m| 1 + sizeof_len((m).get_size()))
-        + self.serial.as_ref().map_or(0, |m| 1 + sizeof_len((m).get_size()))
+        + self.serials.as_ref().map_or(0, |m| 1 + sizeof_len((m).get_size()))
     }
 
     fn write_message<W: Write>(&self, w: &mut Writer<W>) -> Result<()> {
         if let Some(ref s) = self.ids { w.write_with_tag(10, |w| w.write_message(s))?; }
-        if let Some(ref s) = self.serial { w.write_with_tag(18, |w| w.write_message(s))?; }
+        if let Some(ref s) = self.serials { w.write_with_tag(18, |w| w.write_message(s))?; }
         Ok(())
     }
 }
