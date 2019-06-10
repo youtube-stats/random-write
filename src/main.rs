@@ -5,13 +5,12 @@ extern crate quick_protobuf;
 extern crate rand;
 
 pub mod statics;
-use statics::{CACHE_SIZE, POSTGRESQL_URL, INSERT};
+use statics::POSTGRESQL_URL;
 
 pub mod message;
 use message::ChannelMessage;
 
-use crate::bytes::Bytes;
-use crate::hyper::{Response, Server, Body, Request, Method};
+use crate::hyper::{Response, Server, Body, Request};
 use crate::hyper::rt::{Future, Stream, run};
 use crate::hyper::service::service_fn_ok;
 use crate::postgres::{Connection, TlsMode};
@@ -23,10 +22,10 @@ pub fn main() {
     {
         let addr: SocketAddr = ([0u8, 0u8, 0u8, 0u8], 8082u16).into();
 
-        let new_service = move || {
-            service_fn_ok(move |req: Request<Body>| {
-
-            }
+        let new_service = || {
+            service_fn_ok(|req: Request<Body>| {
+                Response::new(Body::empty())
+            })
         };
 
         let server = Server::bind(&addr)
