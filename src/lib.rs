@@ -7,7 +7,7 @@ pub mod message;
 use message::{ChannelMessage, IdsMessage, SerialMessage, SerialsMessage};
 
 pub mod statics;
-use statics::POSTGRESQL_URL;
+use statics::{POSTGRESQL_URL,QUERY};
 
 #[derive(Clone)]
 pub struct ChannelRow {
@@ -28,7 +28,7 @@ impl Channels {
             Connection::connect(params, tls)
                 .expect("Could not connect to database")
         };
-        let query: &'static str = POSTGRESQL_URL;
+        let query: &'static str = QUERY;
 
         let results: Rows = conn.query(query, &[])
             .expect("Could not query db");
