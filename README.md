@@ -1,2 +1,2 @@
-# hyper-db-writer
-A service that abstracts writing metrics to the write db table
+# channel-cache
+A service that caches all available channels for some specified time period to alleviate traffic congestion towards database
