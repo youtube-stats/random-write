@@ -2,13 +2,16 @@ use rand::seq::SliceRandom;
 use rand::rngs::ThreadRng;
 use postgres::{Connection, TlsMode};
 use postgres::rows::Rows;
+use quick_protobuf::serialize_into_vec;
+use std::str;
 
 pub mod message;
-use message::{ChannelMessage, IdsMessage, SerialsMessage};
+use message::ChannelMessage;
 
 pub mod statics;
 use statics::{POSTGRESQL_URL,QUERY};
-use quick_protobuf::serialize_into_vec;
+use std::borrow::Cow;
+
 
 #[derive(Clone)]
 pub struct ChannelRow {
@@ -16,6 +19,7 @@ pub struct ChannelRow {
     pub serial: [u8; 24]
 }
 
+#[derive(Clone)]
 pub struct Channels {
     pub rows: Vec<ChannelRow>
 }
@@ -63,6 +67,10 @@ impl Channels {
         }
     }
 
+    fn get(self: &Channels, i: usize) -> &ChannelRow {
+        &self.rows[i]
+    }
+
     fn get_50(self: &Channels, rng: &ThreadRng) -> Channels {
         let mut rng: ThreadRng = rng.clone();
         let amount: usize = 50;
@@ -78,15 +86,23 @@ impl Channels {
     pub fn get_msg(self: &Channels, rng: &ThreadRng) -> Vec<u8> {
         let sampled: Channels = self.get_50(rng);
 
-        let mut msg: ChannelMessage = ChannelMessage::default();
-        let mut ids: IdsMessage = msg.ids.expect("Could not get ids");
-        let mut serials: SerialsMessage = msg.serials.expect("Could not get serials");
+        let mut message: ChannelMessage = ChannelMessage::default();
 
         for i in 0..50 {
-            ids.
+            let row: &ChannelRow = sampled.get(i);
+
+            let value: i32 = row.id;
+            message.ids.push(value);
+
+            let value: &str = str::from_utf8(row.serial.as_ref())
+                .expect("Could not convert str");
+            let value: String = value.to_string();
+            let value: Cow<str> = Cow::from(value);
+
+            message.serials.push(value);
         }
 
-        let bytes: Vec<u8> = serialize_into_vec(&msg)
+        let bytes: Vec<u8> = serialize_into_vec(&message)
             .expect("Could not serialize");
 
         bytes
