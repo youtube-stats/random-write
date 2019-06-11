@@ -13,6 +13,7 @@ use quick_protobuf::{deserialize_from_slice, serialize_into_vec};
 use std::collections::HashMap;
 use rust_random_write::YoutubeResponseType;
 use reqwest::Client;
+use std::io::Read;
 
 pub fn main() {
     println!("Starting random service");
@@ -21,19 +22,25 @@ pub fn main() {
     loop {
         let bytes: Vec<u8> = {
             let url: &'static str = QUERY_URL;
-            let bytes: String = reqwest::get(url)
+            let mut buffer: Vec<u8> = Vec::new();
+            let bytes = reqwest::get(url)
                 .expect("Could not get response")
-                .text()
-                .expect("Could not get body");
+                .bytes();
 
-            let bytes: Vec<u8> = bytes.into_bytes().clone();
-            bytes
+            for b in bytes {
+                let value: u8 = b.expect("Could not get byte");
+                buffer.push(value);
+            }
+
+            buffer
         };
         let bytes: &[u8] = bytes.as_slice();
 
+        println!("Received bytes: {:?}", bytes);
+
         let msg: ChannelMessage = {
             let msg: ChannelMessage = deserialize_from_slice(bytes)
-                .expect("Could not deserialize body");
+                .expect("Could not deserialize channel body");
 
             println!("Got message {:?}", msg);
             msg
@@ -46,8 +53,7 @@ pub fn main() {
                 let k: String = msg.serials[i].to_string();
                 let v: i32 = msg.ids[i];
 
-                store.insert(k, v)
-                    .expect("Could not insert into hash");
+                store.insert(k, v);
             }
 
             store
@@ -88,8 +94,6 @@ pub fn main() {
                     .expect("Could not query google api").text()
                     .expect("Could not retrieve json body");
                 let s: &str = s.as_str();
-
-                println!("Got metrics {}", s);
 
                 let json_obj_result = serde_json::from_str(s);
 
@@ -137,6 +141,8 @@ pub fn main() {
             let write_data: Vec<u8> = serialize_into_vec(&message)
                 .expect("Could not serialize write message");
 
+            println!("Sending binary to write server: {:?}", write_data);
+
             let url: &'static str = WRITE_URL;
             let write_resp_text: String = client.post(url).body(write_data).send()
                 .expect("Could not reach write server").text()
@@ -153,5 +159,7 @@ pub fn main() {
         if ack_msg.ok {
             println!("Write server transfer success")
         }
+
+        println!("Restarting loop");
     }
 }
