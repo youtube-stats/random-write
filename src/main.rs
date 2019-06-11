@@ -19,11 +19,16 @@ use std::thread::sleep;
 
 pub fn main() {
     println!("Starting random service");
+    let num: String = std::env::args().last().unwrap();
+    println!("Will query with path {}", num);
+
     let client: Client = reqwest::Client::new();
 
     loop {
         let bytes: Vec<u8> = {
-            let url: &'static str = QUERY_URL;
+            let url: String = format!("{}/{}", QUERY_URL, num);
+            let url: &str = url.as_str();
+
             let mut buffer: Vec<u8> = Vec::new();
             let bytes = reqwest::get(url)
                 .expect("Could not get response")
@@ -162,7 +167,7 @@ pub fn main() {
             println!("Write server transfer success")
         }
 
-        let millis = 5000;
+        let millis = 1000;
         println!("Restarting loop - sleeping for {} milliseconds", millis);
 
         let dur: Duration = Duration::from_millis(millis);
