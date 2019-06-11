@@ -14,6 +14,8 @@ use std::collections::HashMap;
 use rust_random_write::YoutubeResponseType;
 use reqwest::Client;
 use std::io::Read;
+use std::time::Duration;
+use std::thread::sleep;
 
 pub fn main() {
     println!("Starting random service");
@@ -160,6 +162,10 @@ pub fn main() {
             println!("Write server transfer success")
         }
 
-        println!("Restarting loop");
+        let millis = 5000;
+        println!("Restarting loop - sleeping for {} milliseconds", millis);
+
+        let dur: Duration = Duration::from_millis(millis);
+        sleep(dur);
     }
 }
