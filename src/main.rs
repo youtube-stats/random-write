@@ -97,9 +97,19 @@ pub fn main() {
                             key, keys_str);
                 let url: &str = url.as_str();
 
-                let s: String = reqwest::get(url)
-                    .expect("Could not query google api").text()
-                    .expect("Could not retrieve json body");
+                let resp = reqwest::get(url);
+                if resp.is_err() {
+                    eprintln!("Failed to call google api");
+                    continue;
+                }
+
+                let resp = resp.unwrap().text();
+                if resp.is_err() {
+                    eprintln!("Failed to retrieve google response body");
+                    continue;
+                }
+
+                let s: String = resp.unwrap();
                 let s: &str = s.as_str();
 
                 let json_obj_result = serde_json::from_str(s);
