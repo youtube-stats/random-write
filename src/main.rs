@@ -79,19 +79,21 @@ pub fn main() {
 
                 keys
             };
-            let key: String = {
-                let url: &'static str = KEY_URL;
-                let key: String = reqwest::get(url)
-                    .expect("Could not get response")
-                    .text()
-                    .expect("Could not get body");
 
-                println!("Got key {}", key);
-                key
-            };
             let keys_str: String = keys.join(",");
 
             loop {
+                let key: String = {
+                    let url: &'static str = KEY_URL;
+                    let key: String = reqwest::get(url)
+                        .expect("Could not get response")
+                        .text()
+                        .expect("Could not get body");
+
+                    println!("Got key {}", key);
+                    key
+                };
+
                 let url: String =
                     format!("https://www.googleapis.com/youtube/v3/channels?part=statistics&key={}&id={}",
                             key, keys_str);
@@ -115,7 +117,8 @@ pub fn main() {
                 let json_obj_result = serde_json::from_str(s);
 
                 if json_obj_result.is_err() {
-                    eprintln!("Failed to parse json - repeating API call");
+                    let err = json_obj_result.err().unwrap();
+                    eprintln!("Failed to parse json - repeating API call {:?}", err);
                     continue;
                 }
 
