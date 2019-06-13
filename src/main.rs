@@ -10,7 +10,7 @@ use quick_protobuf::{deserialize_from_slice, serialize_into_vec};
 use std::collections::HashMap;
 use std::net::{TcpStream, Ipv4Addr, IpAddr, SocketAddr};
 use std::io::Read;
-use std::process::exit;
+use ureq::SerdeValue;
 
 #[derive(Clone, Debug)]
 pub struct ChannelRow {
@@ -50,7 +50,34 @@ pub fn get_key() -> String {
     key
 }
 
-pub fn get_channels(key: &String, n: u32) {
+pub fn get_metrics(key: String, msg: ChannelRowMessage) -> SerdeValue {
+    let mut ids: String = String::new();
+    ids.push_str(&msg.serials[0]);
+
+    let comma: &str = ",";
+    for i in 1..50 {
+        ids.push_str(comma);
+        let string: &str = &msg.serials[i];
+        ids.push_str(string);
+    }
+
+    let url: String =
+        format!("https://www.googleapis.com/youtube/v3/channels?part=statistics&key={}&id={}", key, ids);
+    let path: &str = url.as_str();
+
+    let resp_option = ureq::get(path).call().into_json();
+    if resp_option.is_err() {
+        eprintln!("Error trying to retrieve json - calling again");
+        return get_metrics(key, msg);
+    }
+
+    let json: SerdeValue = resp_option.unwrap();
+    println!("Received response {:?}", json);
+
+    json
+}
+
+pub fn get_channels(key: String, n: u32) {
     let mut stream: TcpStream = call(QUERY_PORT);
     stream.write_u32::<LittleEndian>(n)
         .expect("Could not write u32 to socket");
@@ -65,6 +92,17 @@ pub fn get_channels(key: &String, n: u32) {
         .expect("Could not parse query results");
 
     println!("Received results {:?}", msg);
+
+    let mut hash: HashMap<String, i32> = HashMap::new();
+    for i in 0..msg.ids.len() {
+        let k: String = msg.serials[i].to_string();
+        let v: i32 = msg.ids[i];
+
+        hash.insert(k,v)
+            .expect("Could not insert into hash");
+    }
+
+    let value: SerdeValue = get_metrics(key, msg);
 }
 
 pub fn main() {
@@ -76,6 +114,6 @@ pub fn main() {
 
     loop {
         let key: String = get_key();
-        get_channels(&key, n);
+        get_channels(key, n);
     }
 }
