@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package message;
 
-message ChannelMessage {
+message ChannelRowMessage {
     repeated int32 ids = 1;
     repeated string serials = 2;
 }
@@ -10,8 +10,4 @@ message ChannelMessage {
 message SubMessage {
     repeated int32 ids = 1;
     repeated int32 subs = 2;
-}
-
-message Ack {
-    bool ok = 1;
 }
