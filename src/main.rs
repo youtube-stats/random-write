@@ -8,9 +8,12 @@ use message::{SubMessage, ChannelRowMessage};
 use byteorder::{WriteBytesExt, LittleEndian};
 use quick_protobuf::{deserialize_from_slice, serialize_into_vec};
 use std::collections::HashMap;
-use std::net::{TcpStream, Ipv4Addr, IpAddr, SocketAddr};
 use std::io::Read;
+use std::net::{TcpStream, Ipv4Addr, IpAddr, SocketAddr};
+use std::borrow::{Borrow, Cow};
 use ureq::SerdeValue;
+use std::str::FromStr;
+use std::ops::Deref;
 
 #[derive(Clone, Debug)]
 pub struct ChannelRow {
@@ -93,13 +96,12 @@ pub fn get_channels(key: String, n: u32) {
 
     println!("Received results {:?}", msg);
 
-    let mut hash: HashMap<String, i32> = HashMap::new();
+    let mut hash: HashMap<&str, i32> = HashMap::new();
     for i in 0..msg.ids.len() {
-        let k: String = msg.serials[i].to_string();
+        let k: &str = &msg.serials[i];
         let v: i32 = msg.ids[i];
 
-        hash.insert(k,v)
-            .expect("Could not insert into hash");
+        hash.insert(k, v);
     }
 
     let value: SerdeValue = get_metrics(key, msg);
