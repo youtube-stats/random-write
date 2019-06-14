@@ -8,7 +8,7 @@ use message::{SubMessage, ChannelRowMessage};
 use byteorder::{WriteBytesExt, LittleEndian};
 use quick_protobuf::{deserialize_from_slice, serialize_into_vec};
 use std::collections::HashMap;
-use std::io::Read;
+use std::io::{Read, Write};
 use std::net::{TcpStream, Ipv4Addr, IpAddr, SocketAddr};
 use ureq::SerdeValue;
 
@@ -146,6 +146,18 @@ pub fn get_channels(n: u32) -> HashMap<String, i32> {
     hash
 }
 
+pub fn write_channels(msg: SubMessage) {
+    let mut stream: TcpStream = call(WRITE_PORT);
+    let message: &SubMessage = &msg;
+    let mut buf: Vec<u8> = serialize_into_vec(message)
+        .expect("Could not serialize sub message");
+
+    println!("Writing {} bytes to write server", buf.len());
+    let buf: &[u8] = buf.as_slice();
+    stream.write_all(buf)
+        .expect("Could not write sub message to socket");
+}
+
 pub fn main() {
     println!("Starting random service");
     let num: String = std::env::args().last().unwrap();
@@ -157,5 +169,6 @@ pub fn main() {
         let hash: HashMap<String, i32> = get_channels(n);
         let key: String = get_key();
         let msg: SubMessage = get_metrics(key, hash);
+        write_channels(msg);
     }
 }
