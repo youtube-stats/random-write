@@ -149,7 +149,7 @@ pub fn get_channels(n: u32) -> HashMap<String, i32> {
 pub fn write_channels(msg: SubMessage) {
     let mut stream: TcpStream = call(WRITE_PORT);
     let message: &SubMessage = &msg;
-    let mut buf: Vec<u8> = serialize_into_vec(message)
+    let buf: Vec<u8> = serialize_into_vec(message)
         .expect("Could not serialize sub message");
 
     println!("Writing {} bytes to write server", buf.len());
