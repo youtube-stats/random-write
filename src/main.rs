@@ -50,24 +50,24 @@ pub fn get_key() -> String {
     key
 }
 
-pub fn get_metrics(key: String, msg: ChannelRowMessage) -> SubMessage {
-    let mut hash: HashMap<&str, i32> = HashMap::new();
-    for i in 0..msg.ids.len() {
-        let k: &str = &msg.serials[i];
-        let v: i32 = msg.ids[i];
-
-        hash.insert(k, v);
-    }
-
+pub fn get_ids_str(hash: &HashMap<String, i32>) -> String {
     let mut ids: String = String::new();
-    ids.push_str(&msg.serials[0]);
 
-    let comma: &str = ",";
-    for i in 1..50 {
-        ids.push_str(comma);
-        let string: &str = &msg.serials[i];
-        ids.push_str(string);
+    let comma: &'static str = ",";
+    for string in  hash.keys() {
+        if ids.is_empty() {
+            ids.push_str(string)
+        } else {
+            ids.push_str(comma);
+            ids.push_str(string);
+        }
     }
+
+    ids
+}
+
+pub fn get_metrics(key: String, hash: HashMap<String, i32>) -> SubMessage {
+    let ids: String = get_ids_str(&hash);
 
     let url: String =
         format!("https://www.googleapis.com/youtube/v3/channels?part=statistics&key={}&id={}", key, ids);
@@ -76,7 +76,7 @@ pub fn get_metrics(key: String, msg: ChannelRowMessage) -> SubMessage {
     let resp_option = ureq::get(path).call().into_json();
     if resp_option.is_err() {
         eprintln!("Error trying to retrieve json - calling again with different key");
-        return get_metrics(get_key(), msg);
+        return get_metrics(get_key(), hash);
     }
 
     let value: SerdeValue = resp_option.unwrap();
@@ -87,7 +87,7 @@ pub fn get_metrics(key: String, msg: ChannelRowMessage) -> SubMessage {
     let items_option: Option<&Vec<SerdeValue>> = value["items"].as_array();
     if items_option.is_none() {
         eprintln!("Could not find items in json");
-        return get_metrics(get_key(), msg);
+        return get_metrics(get_key(), hash);
     }
 
     let items = items_option.unwrap();
@@ -95,7 +95,7 @@ pub fn get_metrics(key: String, msg: ChannelRowMessage) -> SubMessage {
         let id_option: Option<&str> = item["id"].as_str();
         if id_option.is_none() {
             eprintln!("Could not find item id");
-            return get_metrics(get_key(), msg);
+            return get_metrics(get_key(), hash);
         }
 
         let id: &str = id_option.unwrap();
@@ -105,7 +105,7 @@ pub fn get_metrics(key: String, msg: ChannelRowMessage) -> SubMessage {
         let sub_option: Option<&str> = item["statistics"]["subscriberCount"].as_str();
         if sub_option.is_none() {
             eprintln!("Could not get subscriberCount");
-            return get_metrics(get_key(), msg);
+            return get_metrics(get_key(), hash);
         }
 
         let sub: &str = sub_option.unwrap();
@@ -119,7 +119,7 @@ pub fn get_metrics(key: String, msg: ChannelRowMessage) -> SubMessage {
     sub_msg
 }
 
-pub fn get_channels(key: String, n: u32) -> SubMessage {
+pub fn get_channels(n: u32) -> HashMap<String, i32> {
     let mut stream: TcpStream = call(QUERY_PORT);
     stream.write_u32::<LittleEndian>(n)
         .expect("Could not write u32 to socket");
@@ -134,9 +134,16 @@ pub fn get_channels(key: String, n: u32) -> SubMessage {
         .expect("Could not parse query results");
 
     println!("Received results {:?}", msg);
+    let mut hash: HashMap<String, i32> = HashMap::new();
+    for i in 0..msg.ids.len() {
+        let k: &str = &msg.serials[i];
+        let k: String = k.to_string();
+        let v: i32 = msg.ids[i];
 
-    let value: SubMessage = get_metrics(key, msg);
-    value
+        hash.insert(k, v);
+    }
+
+    hash
 }
 
 pub fn main() {
@@ -147,7 +154,8 @@ pub fn main() {
         .expect("Could not parse cmd arg to int");
 
     loop {
+        let hash: HashMap<String, i32> = get_channels(n);
         let key: String = get_key();
-        let msg: SubMessage = get_channels(key, n);
+        let msg: SubMessage = get_metrics(key, hash);
     }
 }
