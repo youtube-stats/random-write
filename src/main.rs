@@ -10,10 +10,7 @@ use quick_protobuf::{deserialize_from_slice, serialize_into_vec};
 use std::collections::HashMap;
 use std::io::Read;
 use std::net::{TcpStream, Ipv4Addr, IpAddr, SocketAddr};
-use std::borrow::{Borrow, Cow};
 use ureq::SerdeValue;
-use std::str::FromStr;
-use std::ops::Deref;
 
 #[derive(Clone, Debug)]
 pub struct ChannelRow {
@@ -53,7 +50,15 @@ pub fn get_key() -> String {
     key
 }
 
-pub fn get_metrics(key: String, msg: ChannelRowMessage) -> SerdeValue {
+pub fn get_metrics(key: String, msg: ChannelRowMessage) -> SubMessage {
+    let mut hash: HashMap<&str, i32> = HashMap::new();
+    for i in 0..msg.ids.len() {
+        let k: &str = &msg.serials[i];
+        let v: i32 = msg.ids[i];
+
+        hash.insert(k, v);
+    }
+
     let mut ids: String = String::new();
     ids.push_str(&msg.serials[0]);
 
@@ -70,17 +75,51 @@ pub fn get_metrics(key: String, msg: ChannelRowMessage) -> SerdeValue {
 
     let resp_option = ureq::get(path).call().into_json();
     if resp_option.is_err() {
-        eprintln!("Error trying to retrieve json - calling again");
-        return get_metrics(key, msg);
+        eprintln!("Error trying to retrieve json - calling again with different key");
+        return get_metrics(get_key(), msg);
     }
 
-    let json: SerdeValue = resp_option.unwrap();
-    println!("Received response {:?}", json);
+    let value: SerdeValue = resp_option.unwrap();
+    println!("Received response {:?}", value);
 
-    json
+    let mut sub_msg: SubMessage = SubMessage::default();
+
+    let items_option: Option<&Vec<SerdeValue>> = value["items"].as_array();
+    if items_option.is_none() {
+        eprintln!("Could not find items in json");
+        return get_metrics(get_key(), msg);
+    }
+
+    let items = items_option.unwrap();
+    for item in items {
+        let id_option: Option<&str> = item["id"].as_str();
+        if id_option.is_none() {
+            eprintln!("Could not find item id");
+            return get_metrics(get_key(), msg);
+        }
+
+        let id: &str = id_option.unwrap();
+        let id: i32 = *hash.get(id)
+            .expect("Could not find key");
+
+        let sub_option: Option<&str> = item["statistics"]["subscriberCount"].as_str();
+        if sub_option.is_none() {
+            eprintln!("Could not get subscriberCount");
+            return get_metrics(get_key(), msg);
+        }
+
+        let sub: &str = sub_option.unwrap();
+        let sub: i32 = sub.parse::<i32>().expect("could not convert string to i32");
+
+        sub_msg.ids.push(id);
+        sub_msg.subs.push(sub);
+    }
+
+    println!("Created subscriber message object {:?}", sub_msg);
+    sub_msg
 }
 
-pub fn get_channels(key: String, n: u32) {
+pub fn get_channels(key: String, n: u32) -> SubMessage {
     let mut stream: TcpStream = call(QUERY_PORT);
     stream.write_u32::<LittleEndian>(n)
         .expect("Could not write u32 to socket");
@@ -96,15 +135,8 @@ pub fn get_channels(key: String, n: u32) {
 
     println!("Received results {:?}", msg);
 
-    let mut hash: HashMap<&str, i32> = HashMap::new();
-    for i in 0..msg.ids.len() {
-        let k: &str = &msg.serials[i];
-        let v: i32 = msg.ids[i];
-
-        hash.insert(k, v);
-    }
-
-    let value: SerdeValue = get_metrics(key, msg);
+    let value: SubMessage = get_metrics(key, msg);
+    value
 }
 
 pub fn main() {
@@ -116,6 +148,6 @@ pub fn main() {
 
     loop {
         let key: String = get_key();
-        get_channels(key, n);
+        let msg: SubMessage = get_channels(key, n);
     }
 }
